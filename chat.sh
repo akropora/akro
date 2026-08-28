@@ -10,6 +10,15 @@ NEURON="neuron"
 
 dot_cycle=('⠾' '⠽' '⠻' '⠟' '⠯' '⠟' '⠻' '⠽')
 
+BLUE=$'\033[38;5;75m'
+CYAN=$'\033[38;5;81m'
+GREEN=$'\033[38;5;114m'
+YELLOW=$'\033[38;5;221m'
+RED=$'\033[38;5;203m'
+GRAY=$'\033[38;5;244m'
+DIM=$'\033[2m'
+RESET=$'\033[0m'
+
 mkdir -p "$CHATS"
 
 help() {
@@ -104,14 +113,15 @@ name_chat() {
   local prompt="$1" response name slug
   response=$(curl -fsS "$OLLAMA/api/generate" \
     -H 'Content-Type: application/json' \
-    -d "$(jq -nc --arg model "$NEURON" --arg prompt "$prompt" '{model:$model,stream:false,prompt:("/no_think\nName this chat in 3 to 7 words. Return only the title.\n\n"+$prompt)}')" \
+    -d "$(jq -nc --arg model "$NEURON" --arg prompt "$prompt" '{model:$model,stream:false,prompt:("/no_think\nCreate a short 2-5 word title for this chat.\nReturn ONLY the title words.\nDo not write "Title", "Chat", quotes, punctuation, or an explanation.\nUser message:\n\n"+$prompt)}')" \
     2>/dev/null || true)
 
   name=$(printf '%s' "$response" | jq -r '.response // empty' | tr '\n' ' ' | sed 's/^[[:space:]"'"'']*//; s/[[:space:]"'"'']*$//')
   [ -n "$name" ] || name="New Chat"
 
   title="$name"
-  slug=$(slugify "$name")
+  title=$(printf '%s' "$title" | sed -E 's/^(title|chat)[[:space:]:-]+//I')
+  slug=$(slugify "$title")
   [ -n "$slug" ] || slug="chat"
   file="$CHATS/$slug.json"
 
@@ -119,7 +129,7 @@ name_chat() {
     file="$CHATS/$slug-$(date '+%Y%m%d-%H%M%S').json"
   fi
 
-  echo "Saved as: $(basename "$file" .json)"
+  printf '%sSaved as: %s%s\n' "$GREEN" "$(basename "$file" .json)" "$RESET"
 }
 
 open_chat() {
@@ -136,8 +146,8 @@ open_chat() {
   file="$path"
 
   [ -n "$current_model" ] || current_model="$MODEL"
-  echo "$title"
-  echo "$current_model"
+  printf '%s%s%s\n' "$CYAN" "$title" "$RESET"
+  printf '%s%s%s\n\n' "$GRAY" "$current_model" "$RESET"
   echo
 }
 
@@ -145,7 +155,7 @@ spinner() {
   local pid="$1" i=0
   printf '\033[?25l'
   while kill -0 "$pid" 2>/dev/null; do
-    printf '\r%s' "${dot_cycle[$i]}"
+    printf '\r%s%s%s' "$GRAY" "${dot_cycle[$i]}" "$RESET"
     i=$(( (i + 1) % ${#dot_cycle[@]} ))
     sleep 0.09
   done
@@ -171,7 +181,7 @@ ask_model() {
 
   if [ "$status" -ne 0 ]; then
     rm -f "$tmp"
-    echo "Ollama request failed."
+    printf '%sOllama request failed.%s\n' "$RED" "$RESET"
     return
   fi
 
@@ -180,7 +190,7 @@ ask_model() {
   answer=$(printf '%s' "$response" | jq -r '.message.content // empty')
 
   [ -n "$answer" ] || {
-    echo "Ollama returned an empty response."
+    printf '%sOllama returned an empty response.%s\n' "$RED" "$RESET"
     return
   }
 
@@ -216,7 +226,7 @@ elif [ -n "${1:-}" ]; then
   help
   exit 1
 else
-  echo "$current_model"
+  printf '%s%s%s\n\n' "$GRAY" "$current_model" "$RESET"
   echo
 fi
 
@@ -224,7 +234,9 @@ trap 'printf "\033[?25h"; save_chat; exit 130' INT TERM
 trap 'printf "\033[?25h"' EXIT
 
 while true; do
-  IFS= read -e -r -p '> ' input || break
+  printf '%s> ' "$BLUE"
+  IFS= read -e -r input || break
+  printf '%s' "$RESET"
   [ -n "$input" ] || continue
 
   case "$input" in
@@ -241,17 +253,17 @@ while true; do
       continue
       ;;
     /model)
-      echo "$current_model"
+      printf '%s%s%s\n' "$CYAN" "$current_model" "$RESET"
       continue
       ;;
     /model\ *)
       next_model="${input#/model }"
       if ollama show "$next_model" >/dev/null 2>&1; then
-        current_model="$next_model"
+        printf '%s%s%s\n' "$CYAN" "$current_model" "$RESET"
         save_chat
         echo "$current_model"
       else
-        echo "Model not found: $next_model"
+        printf '%sModel not found: %s%s\n' "$YELLOW" "$next_model" "$RESET"
       fi
       continue
       ;;
@@ -275,7 +287,7 @@ while true; do
 
 $user_text"
     else
-      echo "Unknown command or skill: $skill"
+      printf '%sUnknown command or skill: %s%s\n' "$YELLOW" "$skill" "$RESET"
       continue
     fi
   fi
