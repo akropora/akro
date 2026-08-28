@@ -1,59 +1,110 @@
 # Akro
 
-Akro is a small terminal chat client for local Ollama models on macOS.
+Akro is a tiny terminal chat client for local Ollama models on macOS.
 
-The goal is simple: keep the chat experience good and keep the code easy to read.
+It is built to stay simple. One shell script handles the chat, one JSON file holds prompt skills, and conversations are saved as plain JSON.
 
-## What it does
+## Features
 
-- chats with Ollama at `127.0.0.1:11434`
-- keeps full conversation history
-- renders finished answers with Glow
-- uses a tiny Neuron model to name chats after the first prompt
-- saves each chat as one plain JSON file
-- reopens chats with their saved model
-- supports simple one-turn prompt skills from `skills.json`
-- uses readline-style terminal input
+- local Ollama chat at `127.0.0.1:11434`
+- full conversation history
+- finished responses rendered with Glow
+- tiny Neuron model that names chats after the first prompt
+- saved conversations
+- reopen chats with their original model
+- simple one-turn prompt skills
+- readline-style terminal input
+- lightweight thinking animation
 
-There is no web search, document system, memory layer, system prompt loader, token tracker, or context manager.
+No web search, document system, memory layer, system prompt loader, token tracker, or context manager.
+
+## Requirements
+
+Akro currently supports macOS.
+
+You need:
+
+- [Ollama](https://ollama.com/)
+- `curl`
+- `jq`
+- [Glow](https://github.com/charmbracelet/glow)
+- at least one Ollama chat model
+
+With Homebrew:
+
+```bash
+brew install jq glow
+```
+
+Ollama should already be installed and running.
+
+You should also have at least one model installed:
+
+```bash
+ollama list
+```
 
 ## Install
 
-Requirements:
-
-- macOS
-- Ollama
-- curl
-- jq
-- Glow
-
-Then run:
+Run:
 
 ```bash
-chmod +x install.sh
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/akropora/akro/main/install.sh | bash
 ```
 
-The installer asks which installed Ollama model should be the default, writes that choice to `.config`, creates the Neuron helper model, and installs the `akro` command.
+The installer will:
 
-Akro installs to:
+1. check the required tools
+2. find your installed Ollama models
+3. ask which model should be the default
+4. install Akro to `~/user/chat`
+5. pull `qwen3:0.6b` if needed
+6. create the small `neuron` helper model
+7. install the `akro` command
 
-```text
-~/user/chat/
+If `~/.local/bin` was not already in your PATH, open a new Terminal window after installation or run:
+
+```bash
+source ~/.zshrc
+```
+
+Then start Akro:
+
+```bash
+akro
 ```
 
 ## CLI
 
+Start a new conversation:
+
 ```bash
 akro
+```
+
+List saved conversations:
+
+```bash
 akro list
+```
+
+Open a saved conversation:
+
+```bash
 akro open local-ai-harness
+```
+
+Show help:
+
+```bash
 akro help
 ```
 
-`akro list` prints the filenames of saved chats without `.json`.
+You do not need to include `.json` when opening a conversation.
 
-## In-chat commands
+## Chat commands
+
+Inside Akro:
 
 ```text
 /skills
@@ -65,49 +116,245 @@ akro help
 /quit
 ```
 
+### `/skills`
+
+Lists every prompt skill in `skills.json`.
+
+### `/model`
+
+Shows the model currently being used.
+
+### `/model <name>`
+
+Switches the current conversation to another installed Ollama model.
+
+Example:
+
+```text
+/model qwen3:4b
+```
+
+### `/new`
+
+Starts a fresh conversation without leaving Akro.
+
+### `/exit`
+
+Exits Akro.
+
+`/bye` and `/quit` do the same thing.
+
 ## Skills
 
-Skills are simple prompt prefixes stored in `skills.json`.
+Prompt skills live in:
+
+```text
+~/user/chat/skills.json
+```
+
+Akro includes:
+
+```json
+{
+  "concise": "Answer briefly and directly.",
+  "step-by-step": "Explain the answer clearly, one step at a time."
+}
+```
+
+Use a skill at the beginning of your prompt:
 
 ```text
 /concise explain DNS
-/step-by-step explain how git rebase works
 ```
 
-A skill affects only that turn. Skills do not stack.
+or:
 
-## Saved chats
+```text
+/step-by-step explain git rebase
+```
 
-Chats live in `conversations/` and stay intentionally plain:
+A skill only changes that one turn.
+
+Skills do not stack.
+
+You can add your own by editing `skills.json`.
+
+For example:
+
+```json
+{
+  "concise": "Answer briefly and directly.",
+  "step-by-step": "Explain the answer clearly, one step at a time.",
+  "teacher": "Explain this like a patient teacher using simple examples."
+}
+```
+
+Then use:
+
+```text
+/teacher explain recursion
+```
+
+## Conversations
+
+After your first prompt, Neuron gives the chat a short name.
+
+Akro prints the name:
+
+```text
+Saved as: local-ai-harness
+```
+
+The conversation is stored at:
+
+```text
+~/user/chat/conversations/local-ai-harness.json
+```
+
+Run:
+
+```bash
+akro list
+```
+
+to see all saved conversation names.
+
+Then reopen one with:
+
+```bash
+akro open local-ai-harness
+```
+
+## Conversation format
+
+Conversation files intentionally stay simple:
 
 ```json
 {
   "title": "Local AI Harness",
   "model": "qwen3:4b",
   "messages": [
-    {"role": "user", "content": "Hello"},
-    {"role": "assistant", "content": "Hi."}
+    {
+      "role": "user",
+      "content": "Hello"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi."
+    }
   ]
 }
 ```
 
-When a saved chat is opened, Akro switches to the model stored in that file.
+When a conversation is reopened, Akro reads its saved model and automatically switches back to that model.
+
+## Configuration
+
+Your default model is stored in:
+
+```text
+~/user/chat/.config
+```
+
+The file contains one line:
+
+```text
+MODEL=qwen3:4b
+```
+
+You can change it manually whenever you want.
+
+This controls the model used when starting a new conversation.
 
 ## Files
+
+The GitHub repo is intentionally small:
+
+```text
+akro/
+├── conversations/
+├── modelfiles/
+│   └── neuron
+├── system-prompts/
+├── chat.sh
+├── install.sh
+├── skills.json
+├── .config.example
+├── .gitignore
+├── LICENSE
+└── README.md
+```
+
+The installed app only needs:
 
 ```text
 ~/user/chat/
 ├── conversations/
 ├── modelfiles/
 │   └── neuron
-├── system-prompts/
 ├── chat.sh
 ├── skills.json
 └── .config
 ```
 
-`system-prompts/` is only a place to keep optional examples for custom Ollama Modelfiles. Akro itself does not load a system prompt.
+## Modelfiles and system prompts
 
-## Design
+The repo also includes folders for example Ollama Modelfiles and system prompts.
 
-Most of Akro lives in `chat.sh` on purpose. There is no framework behind it. The shell script reads the config, handles a few commands, sends conversation history to Ollama, renders the answer, and saves the chat.
+These are optional resources for people who want to build custom models for Akro.
+
+Akro itself does not load a system prompt.
+
+## Neuron
+
+Neuron is Akro's tiny helper model.
+
+It is based on:
+
+```text
+qwen3:0.6b
+```
+
+Neuron is not your main chat model. It currently has one small job:
+
+```text
+first prompt
+    ↓
+Neuron
+    ↓
+short chat title
+    ↓
+conversation saved
+```
+
+Keeping tiny background jobs separate lets the main chat stay simple.
+
+## How Akro works
+
+Most of Akro lives in `chat.sh` on purpose.
+
+The basic loop is:
+
+```text
+input
+  ↓
+command or skill
+  ↓
+Ollama
+  ↓
+thinking animation
+  ↓
+Glow
+  ↓
+save
+```
+
+That is basically the whole app.
+
+## Philosophy
+
+Akro is intentionally small.
+
+The goal is not to build another large AI framework. It is meant to be a local chat tool that is easy to run, read, change, and understand.
+
+If something can be done simply, Akro should do it simply.
