@@ -113,7 +113,10 @@ name_chat() {
   local prompt="$1" response name slug
   response=$(curl -fsS "$OLLAMA/api/generate" \
     -H 'Content-Type: application/json' \
-    -d "$(jq -nc --arg model "$NEURON" --arg prompt "$prompt" '{model:$model,stream:false,prompt:("/no_think\nCreate a short 2-5 word title for this chat.\nReturn ONLY the title words.\nDo not write "Title", "Chat", quotes, punctuation, or an explanation.\nUser message:\n\n"+$prompt)}')" \
+    -d "$(jq -nc \
+      --arg model "$NEURON" \
+      --arg prompt "$prompt" \
+      '{model:$model,stream:false,prompt:("/no_think\nCreate a short 2-5 word title for this chat.\nReturn ONLY the title words.\nDo not add a label, quotes, punctuation, or an explanation.\nUser message:\n\n" + $prompt)}')" \
     2>/dev/null || true)
 
   name=$(printf '%s' "$response" | jq -r '.response // empty' | tr '\n' ' ' | sed 's/^[[:space:]"'"'']*//; s/[[:space:]"'"'']*$//')
@@ -234,9 +237,8 @@ trap 'printf "\033[?25h"; save_chat; exit 130' INT TERM
 trap 'printf "\033[?25h"' EXIT
 
 while true; do
-  printf '%s> ' "$BLUE"
+  printf '%s>%s ' "$BLUE" "$RESET"
   IFS= read -e -r input || break
-  printf '%s' "$RESET"
   [ -n "$input" ] || continue
 
   case "$input" in
