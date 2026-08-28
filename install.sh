@@ -11,6 +11,14 @@ RAW_URL="https://raw.githubusercontent.com/$AKRO_REPO/$AKRO_BRANCH"
   exit 1
 }
 
+[ -t 0 ] || {
+  echo "This installer needs interactive input."
+  echo
+  echo 'Run it with:'
+  echo 'bash -c "$(curl -fsSL https://raw.githubusercontent.com/akropora/akro/main/install.sh)"'
+  exit 1
+}
+
 for cmd in curl jq glow ollama; do
   command -v "$cmd" >/dev/null 2>&1 || {
     echo "Missing dependency: $cmd"
@@ -42,7 +50,7 @@ EOF
 
 while true; do
   printf '> '
-  IFS= read -r choice </dev/tty
+  IFS= read -r choice
 
   case "$choice" in
     ''|*[!0-9]*)

@@ -49,7 +49,7 @@ ollama list
 Run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/akropora/akro/main/install.sh | bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/akropora/akro/main/install.sh)"
 ```
 
 The installer will:
