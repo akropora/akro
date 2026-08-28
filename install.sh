@@ -42,7 +42,7 @@ EOF
 
 while true; do
   printf '> '
-  IFS= read -r choice
+  IFS= read -r choice </dev/tty
 
   case "$choice" in
     ''|*[!0-9]*)
