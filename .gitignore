@@ -1,3 +1,4 @@
 .config
 conversations/*.json
 .DS_Store
+images
