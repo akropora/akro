@@ -43,9 +43,20 @@ EOF
 while true; do
   printf '> '
   IFS= read -r choice
+
+  case "$choice" in
+    ''|*[!0-9]*)
+      echo "Enter a number from the list."
+      continue
+      ;;
+  esac
+
   model=$(printf '%s\n' "$models" | sed -n "${choice}p")
 
-  [ -n "$model" ] && break
+  if [ -n "$model" ]; then
+    break
+  fi
+
   echo "Invalid choice."
 done
 
@@ -61,7 +72,7 @@ fetch chat.sh
 fetch skills.json
 fetch modelfiles/neuron
 
-printf 'MODEL=%s\n' "$model" > "$INSTALL_DIR/.config"
+printf 'MODEL="%s"\n' "$model" > "$INSTALL_DIR/.config"
 chmod +x "$INSTALL_DIR/chat.sh"
 
 if ! ollama show qwen3:0.6b >/dev/null 2>&1; then
