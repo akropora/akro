@@ -1,0 +1,7 @@
+{
+  "name": "concise",
+  "type": "prompt",
+  "syntax": "/concise",
+  "description": "Give a short, direct answer.",
+  "instruction": "Answer briefly and directly. Include only what is needed to answer the request."
+}

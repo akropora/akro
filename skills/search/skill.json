@@ -1,0 +1,8 @@
+{
+  "name": "search",
+  "type": "tool",
+  "syntax": "/search",
+  "description": "Search the current web with Tavily and ground the answer in returned sources.",
+  "entrypoint": "run.sh",
+  "activity": "searching"
+}
