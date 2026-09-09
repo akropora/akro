@@ -1,289 +1,675 @@
-# Akro V2
+# Akro
 
-Akro is a local-first terminal AI environment built around Ollama, Bash, JSON, small helper models, explicit slash-command skills, long-term memory, and project-scoped knowledge.
+Akro is a lightweight local AI environment built around Ollama.
 
-V2 keeps the parts that made V1 simple, but changes the architecture so Akro can grow without turning into one giant shell script.
+It combines local chat, long-term memory, projects, searchable knowledge, and a modular skill system without requiring a large framework or cloud-hosted model.
 
-## What changed in V2
+The goal is simple:
 
-- Folder-based skills with automatic discovery
-- Slash commands remain the only way skills are invoked
-- Skills can be added without editing Akro core files
-- Project-specific chats, documents, memory, and knowledge
-- Global memory that can follow you across projects
-- Hybrid Brain retrieval using keywords, importance, recency, and optional embeddings
-- Separate long-term memory and exact document knowledge
-- Plain-text document chunking and immediate indexing
-- Automatic Brain learning after chat turns
-- `/memory` browser with inspect, edit, delete, and global promotion
-- `/project` project switching
-- `/prompt` inspection for debugging model context
-- Streaming Ollama responses
-- Visible activity indicators for slow work
-- Centralized configuration
-- Smaller, modular core files
+> Make small local models more useful by giving them better memory, better retrieval, and better tools.
 
-## Design philosophy
+Akro is designed to stay fast, understandable, hackable, and local.
 
-Akro V2 is built around a few rules:
+## Features
 
-1. Local first.
-2. Small models first.
-3. Small context windows first.
-4. Retrieval is better than giant prompts.
-5. Skills should be explicit slash commands.
-6. Installing a skill should not require editing Akro core.
-7. Tiny helper models should organize information so the main model can focus on the answer.
-8. Memory should stay understandable.
-9. Slow work should always look alive.
-10. Stay Bash and JSON unless there is a strong reason not to.
+* Local chat powered by Ollama
+* Switch between installed Ollama models
+* Persistent conversation history
+* Long-term memory
+* Project-specific memory and knowledge
+* Searchable document knowledge
+* Hybrid retrieval for small context windows
+* Optional semantic retrieval with embeddings
+* Modular folder-based skills
+* Automatic skill discovery
+* Stackable slash-command skills
+* Web search with Tavily
+* Plain-text document ingestion
+* Streaming model responses
+* Live terminal activity indicators
+* Prompt inspection and debugging
+* Markdown rendering with Glow
+* Automatic chat naming
+* Memory browsing and management
 
 ## Requirements
 
-Required:
+Akro is currently designed for macOS and Bash.
 
-- Bash
-- Ollama
-- `curl`
-- `jq`
-- standard Unix tools such as `awk`, `sed`, `grep`, `cksum`, `mktemp`, `tput`, and `stty`
+You will need:
+
+* macOS
+* Bash
+* Ollama
+* `curl`
+* `jq`
+* `awk`
+* `sed`
 
 Optional:
 
-- `glow` for pretty Markdown rendering when reopening chat history
-- Tavily API key for `/search`
-- `embeddinggemma:latest` for semantic retrieval
+* `glow` for Markdown rendering
+* Tavily API key for `/search`
+* an Ollama embedding model for semantic retrieval
 
-Akro still works without an embedding model. It falls back to keyword, importance, and recency scoring.
+## Install Ollama
 
-## Quick start
+Install Ollama from:
+
+https://ollama.com
+
+Then download at least one chat model.
+
+For example:
 
 ```bash
-git clone <your-akro-repo-url>
+ollama pull qwen3.5:4b
+```
+
+You can use any installed Ollama chat model with Akro.
+
+To see your installed models:
+
+```bash
+ollama list
+```
+
+## Install Akro
+
+Clone the repository:
+
+```bash
+git clone https://github.com/akropora/akro.git
 cd akro
-chmod +x chat.sh install.sh
+```
+
+Make the scripts executable:
+
+```bash
+chmod +x chat.sh install.sh tests/*.sh
+```
+
+Run the installer:
+
+```bash
 ./install.sh
-./chat.sh
 ```
 
-Or run it directly without installing a launcher:
+Or start Akro directly:
 
 ```bash
 ./chat.sh
 ```
 
-Akro stores user data in:
+## Starting Akro
 
-```text
-~/.akro/
-```
-
-The repository itself stays clean.
-
-## Recommended Ollama models
-
-Akro can chat with any installed Ollama model.
-
-The default helper model names are:
-
-```text
-neuron:latest       titles and lightweight organization
-librarian:latest    long-term memory extraction
-embeddinggemma:latest   semantic retrieval, optional
-```
-
-Change any of these in `.env` or with environment variables.
-
-## Configuration
-
-Copy the example environment file:
+From the Akro directory:
 
 ```bash
-cp examples/.env.example .env
+./chat.sh
 ```
 
-Then edit what you need.
+Akro will detect your installed Ollama models and open the terminal interface.
 
-Environment variables override `config.sh` defaults.
+You can type normally to chat.
 
-## Main commands
+Example:
 
 ```text
-/model             choose an Ollama model
-/chats             browse chats in the current project
-/new               start a new chat
-/save name         rename the current chat
-/project           switch projects
-/project name      create or switch to a project
-/memory            browse Brain notes
-/learn             learn changed project sources
-/learn-all         rebuild project Brain notes
-/brain             show memory and knowledge status
-/skills            show detected skills
-/prompt            inspect the last main-model prompt
-/CLEAR             clear the current project
-/help              show help
-/quit              exit
+you > Explain how DNS works.
+```
+
+## Main Commands
+
+### Models
+
+Choose an installed Ollama model:
+
+```text
+/model
+```
+
+Akro remembers the model used by each saved conversation.
+
+### Conversations
+
+Browse saved chats:
+
+```text
+/chats
+```
+
+Start a new conversation:
+
+```text
+/new
+```
+
+Rename the current conversation:
+
+```text
+/save My Chat Name
+```
+
+### Projects
+
+Switch projects:
+
+```text
+/project
+```
+
+Projects keep related chats, memory, documents, and knowledge together.
+
+For example, you might have:
+
+```text
+akro
+school
+work
+personal
+```
+
+Project-specific information stays isolated from unrelated projects.
+
+Akro can also maintain global memory that is available across projects.
+
+### Memory
+
+Browse stored memories:
+
+```text
+/memory
+```
+
+Akro's Brain is designed to preserve useful long-term information without placing your entire history into every prompt.
+
+Memory retrieval considers relevance, importance, recency, and optionally semantic similarity.
+
+### Brain Status
+
+View Brain information:
+
+```text
+/brain
+```
+
+### Learn
+
+Learn new or changed Brain sources:
+
+```text
+/learn
+```
+
+Rebuild generated Brain knowledge:
+
+```text
+/learn-all
+```
+
+Most newly imported documents are indexed immediately, so `/learn` is mainly useful for rebuilding or updating existing Brain sources.
+
+### Prompt Inspection
+
+Inspect what Akro is preparing for the model:
+
+```text
+/prompt
+```
+
+This is useful for debugging retrieval, skills, projects, and context usage.
+
+### Help
+
+```text
+/help
+```
+
+or:
+
+```text
+/?
+```
+
+### Exit
+
+```text
+/quit
+```
+
+You can also use:
+
+```text
+/exit
+/bye
+```
+
+## Multiline Input
+
+Enter:
+
+```text
+"""
+```
+
+by itself to begin multiline mode.
+
+Finish with another:
+
+```text
+"""
+```
+
+on its own line.
+
+Example:
+
+```text
+you > """
+... > Here is some code.
+... > Please review it carefully.
+... > """
 ```
 
 ## Skills
 
-Skills are explicit suffix commands.
+Akro uses slash-command skills.
 
-```text
-Explain this simply /concise
-Fix this function /plsfix
-What changed in Ollama this week? /search
-Summarize this /document [~/notes/report.txt]
-```
+Skills live in individual folders and are detected automatically.
 
-Skills can stack:
-
-```text
-Fix this function and keep the answer short /plsfix /concise
-```
-
-Each skill lives in its own folder:
+Example structure:
 
 ```text
 skills/
   concise/
     skill.json
+
+  plsfix/
+    skill.json
+
   search/
     skill.json
     run.sh
 ```
 
-Akro discovers valid skill folders automatically.
+You do not need to edit Akro's main source code to install a new skill.
 
-See `docs/SKILLS.md` for the skill format.
+Drop a valid skill into the `skills/` directory and Akro can discover it.
 
-## Projects
-
-Projects isolate unrelated work.
-
-```bash
-/project akro
-/project school
-/project personalysis
-```
-
-Each project gets its own:
+View installed skills:
 
 ```text
-chats/
-documents/
-brain/
-knowledge/
+/skills
 ```
 
-Global Brain memory lives separately and is available to every project.
+## Using Skills
 
-Inside `/memory`, a project note can be promoted to global memory with `G`.
+Prompt skills can modify how the model handles a request.
 
-## Brain V2
+Example:
 
-Akro separates two ideas that V1 mixed together.
+```text
+Explain Docker networking /concise
+```
 
-### Memory
+Or:
 
-Compact generated notes about useful context, preferences, decisions, goals, projects, and facts.
+```text
+Fix this Bash function /plsfix
+```
 
-### Knowledge
+Skills can also be stacked:
 
-Exact chunks from imported plain-text documents.
+```text
+Fix this function /plsfix /concise
+```
 
-When Akro builds a prompt, it retrieves a small amount of relevant information from both systems. This is designed to make small local models useful without feeding them huge context windows.
+Akro intentionally uses explicit slash commands instead of automatically deciding which skills to run.
 
-## Plain-text documents
+This keeps tool use predictable and under your control.
 
-V2 intentionally stays simple and fast.
+## Web Search
 
-`/document` accepts readable plain-text files only. That includes things like:
+Akro includes a Tavily-powered search skill.
+
+Example:
+
+```text
+What changed in the latest version of Ollama? /search
+```
+
+To use it, set your Tavily API key.
+
+You can place it in your environment or Akro `.env` file:
+
+```bash
+TAVILY_API_KEY="your-key-here"
+```
+
+Never commit your real API key to GitHub.
+
+## Documents
+
+Akro V2 intentionally focuses on readable text files.
+
+Example:
+
+```text
+Summarize this /document [~/Documents/notes.txt]
+```
+
+Akro can:
+
+* copy the document into its local knowledge store
+* split larger files into chunks
+* index those chunks
+* generate compact knowledge notes
+* retrieve relevant sections later
+
+This lets the model answer questions about documents without placing the entire document into every future prompt.
+
+### Supported Documents
+
+Akro currently focuses on readable text content, including files such as:
 
 ```text
 .txt
 .md
 .json
-.csv
+.sh
+.py
+.js
+html
 source code
-configuration files
+other plain-text formats
 ```
 
-A document is copied into the active project, chunked, indexed, summarized by Librarian, and made searchable immediately.
+PDF, Word, spreadsheet, and OCR support are intentionally not part of V2 yet.
 
-Small documents can also be included directly in the current request. Large documents rely on retrieval instead of flooding the main model context.
+## Brain
 
-## Streaming and activity
+Akro's long-term memory system is called Brain.
 
-Main model responses stream as they arrive from Ollama.
+Brain has two main jobs.
 
-Longer operations show activity states such as:
+### Memory
+
+Memory stores useful long-term information such as:
+
+* preferences
+* goals
+* project context
+* decisions
+* recurring facts
+* important user context
+
+Akro tries to avoid storing every trivial interaction as permanent memory.
+
+### Knowledge
+
+Knowledge stores searchable information from source documents and project material.
+
+This distinction allows Akro to remember that something matters while still retrieving the exact source material when needed.
+
+## Retrieval
+
+Akro is designed around small context windows.
+
+Instead of sending huge amounts of history to the model, Akro retrieves a small amount of relevant information.
+
+Retrieval can consider:
+
+* keywords
+* importance
+* recency
+* semantic similarity
+
+The result is a smaller, more focused prompt.
+
+This is especially useful with smaller local models.
+
+## Semantic Retrieval
+
+Akro can optionally use Ollama embeddings.
+
+If an embedding model is installed, Akro can use semantic similarity in addition to keyword matching.
+
+For example:
+
+```bash
+ollama pull embeddinggemma
+```
+
+Akro will continue working without an embedding model.
+
+Without embeddings, retrieval falls back to lexical relevance, importance, and recency.
+
+## Projects
+
+Projects provide isolated workspaces.
+
+A project can contain its own:
 
 ```text
-[thinking...]
-[searching...]
-[indexing document...]
-[remembering...]
+chats
+documents
+memory
+knowledge
+instructions
 ```
 
-The goal is simple: Akro should never look frozen while it is working.
+Akro may also maintain global memory that can be retrieved across projects.
 
-## Repository layout
+Conceptually, the model receives only what is useful:
+
+```text
+relevant global memory
++
+relevant project memory
++
+relevant project knowledge
++
+recent conversation
++
+current request
+```
+
+This helps prevent unrelated information from filling the model's context window.
+
+## Background Models
+
+Akro can use small specialized Ollama models for background tasks.
+
+Examples include:
+
+* chat naming
+* memory extraction
+* document summaries
+* retrieval support
+* classification
+
+The main chat model remains user-selectable.
+
+A useful way to think about the architecture is:
+
+> The chat model thinks. Small models organize.
+
+## Streaming and Activity
+
+Akro is designed so long operations do not appear frozen.
+
+The terminal can display activity for tasks such as:
+
+```text
+thinking
+searching
+indexing
+learning
+retrieving memory
+loading models
+```
+
+Model responses are streamed when supported by the current runtime.
+
+## Configuration
+
+Akro keeps major settings in a central configuration layer.
+
+Settings can include:
+
+* Akro directories
+* Ollama API address
+* default chat model
+* Librarian model
+* Brain model
+* embedding model
+* context size
+* response limits
+* retrieval limits
+* project paths
+* skill paths
+* Tavily configuration
+* UI behavior
+
+Environment variables can override defaults.
+
+## Environment File
+
+Akro can load:
+
+```text
+.env
+```
+
+from the Akro directory.
+
+Example:
+
+```bash
+TAVILY_API_KEY="..."
+DEFAULT_MODEL="qwen3.5:4b"
+```
+
+Do not commit `.env` to GitHub.
+
+## Repository Structure
+
+The exact structure may evolve, but V2 follows this general layout:
 
 ```text
 akro/
   chat.sh
-  config.sh
   install.sh
+  config.sh
 
   lib/
-    common.sh
     ui.sh
     ollama.sh
-    projects.sh
     chats.sh
-    brain.sh
-    knowledge.sh
-    skills.sh
     commands.sh
+    brain.sh
+    memory.sh
+    knowledge.sh
+    projects.sh
+    skills.sh
 
   skills/
     concise/
     plsfix/
-    caveman/
     search/
     document/
+
+  brain/
+
+  projects/
 
   docs/
     ARCHITECTURE.md
     SKILLS.md
     MIGRATION.md
 
-  examples/
-    .env.example
-
   tests/
-    smoke.sh
 ```
 
-## Test the repository
+## Creating Skills
+
+Skills are meant to be simple and portable.
+
+A prompt skill may only require a `skill.json` file.
+
+A tool skill can include its own executable logic.
+
+See:
+
+```text
+docs/SKILLS.md
+```
+
+for the current skill format and examples.
+
+## Updating Akro
+
+From inside your repository:
+
+```bash
+git pull
+```
+
+If you have changed local configuration, review your `.env` and config overrides after updating.
+
+## Development
+
+Run the included tests with:
 
 ```bash
 ./tests/smoke.sh
 ```
 
-The smoke test checks shell syntax, skill manifests, required files, and executable tool skills without requiring Ollama to be running.
+You can also check shell syntax manually:
 
-## V2 scope decisions
+```bash
+bash -n chat.sh
+bash -n lib/*.sh
+```
 
-V2 intentionally does not include:
+## Design Philosophy
 
-- automatic skill selection
-- PDF parsing
-- Word document parsing
-- OCR
-- spreadsheet parsing
-- model-specific writing or coding profiles
+Akro follows a few simple rules:
 
-Those can come later if they earn their complexity.
+1. Local first.
+2. Small models first.
+3. Small context windows first.
+4. Retrieval is better than giant prompts.
+5. Tools should be explicit.
+6. Slash commands are the main extension interface.
+7. Skills should install without modifying Akro itself.
+8. Tiny models should handle background organization.
+9. Memory should feel simple.
+10. Slow operations should always show activity.
+11. Bash and JSON are preferred unless something clearly better is needed.
+12. The system should remain understandable enough to modify yourself.
+
+## Privacy
+
+Akro is designed primarily around local models and local data.
+
+Your chats, project data, Brain notes, and documents can remain on your machine.
+
+External services are only used when you explicitly enable features that require them, such as Tavily web search.
+
+Review any third-party service's privacy policy before sending sensitive information through it.
+
+## Version
+
+Current major version:
+
+```text
+Akro V2
+```
+
+V2 focuses on modular skills, projects, long-term memory, searchable knowledge, retrieval for small models, and a more responsive terminal experience.
+
+## License
+
+Add your preferred license to the repository as `LICENSE`.
