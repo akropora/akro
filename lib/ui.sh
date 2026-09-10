@@ -72,7 +72,7 @@ ui_activity_wait() {
     local pid="$1"
     local label="${2:-working}"
     local frame=0 spinner=""
-    local -a cycle=('⠾' '⠽' '⠻' '⠟' '⠯' '⠟' '⠻' '⠽')
+    local -a cycle=('|' '/' '-' '\\')
     [[ "${AKRO_SHOW_ACTIVITY:-1}" == "1" ]] || { wait "$pid"; return $?; }
     tput civis 2>/dev/null || true
     while kill -0 "$pid" 2>/dev/null; do
@@ -133,4 +133,19 @@ ui_picker() {
         esac
         ui_draw_picker "$title" "$subtitle"
     done
+}
+
+
+ui_background_status() {
+    local status_file="$AKRO_RUNTIME_DIR/remember/status" status="" seen_file="$AKRO_RUNTIME_DIR/remember/status.seen"
+    [[ -f "$status_file" ]] || return 0
+    status="$(cat "$status_file" 2>/dev/null || true)"
+    [[ -n "$status" ]] || return 0
+    if [[ ! -f "$seen_file" || "$(cat "$seen_file" 2>/dev/null || true)" != "$status" ]]; then
+        case "$status" in
+            remembered:*) printf '%b[ok remembered]%b\n\n' "$GRAY" "$RESET" ;;
+            failed:*) printf '%b[! remembering failed: %s]%b\n\n' "$YELLOW" "${status#failed:}" "$RESET" ;;
+        esac
+        printf '%s' "$status" > "$seen_file"
+    fi
 }

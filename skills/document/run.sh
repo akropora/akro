@@ -17,6 +17,14 @@ size="$(akro_file_size "$path")"; case "$size" in ''|*[!0-9]*) size=0;; esac
 [[ -s "$path" ]] || { printf 'Document is empty.\n' >&2; exit 1; }
 grep -Iq . "$path" 2>/dev/null || { printf 'V2 accepts readable plain-text documents only.\n' >&2; exit 1; }
 
+if [[ "${CURRENT_PROJECT_SLUG:-}" == "sandbox" ]]; then
+  (( size <= DOCUMENT_INLINE_BYTES )) || { printf 'Sandbox documents are temporary and must be %s bytes or smaller.\n' "$DOCUMENT_INLINE_BYTES" >&2; exit 1; }
+  content="$(cat "$path")"
+  transformed="Sandbox is isolated. This document is supplied only to the current request and will not be copied, indexed, or remembered.\n\n--- BEGIN DOCUMENT ---\n$content\n--- END DOCUMENT ---\n\nUSER REQUEST:\n$prompt"
+  jq -n --arg prompt "$transformed" --arg notice "Temporary sandbox document loaded: $(basename "$path")." '{prompt:$prompt,notice:$notice}'
+  exit 0
+fi
+
 mkdir -p "$CURRENT_PROJECT_DIR/documents"
 base="$(basename "$path")"; target="$CURRENT_PROJECT_DIR/documents/$base"; n=2
 fp="$(akro_fingerprint "$path")"; existing=""

@@ -1,0 +1,7 @@
+{
+  "name": "decision",
+  "type": "prompt",
+  "syntax": "/decision",
+  "description": "Turn a fuzzy choice into a structured decision with explicit tradeoffs, a recommendation, and a next action.",
+  "instruction": "Treat this as a decision that must end in a useful choice. Define the real decision, hard constraints, and meaningful evaluation criteria. Compare only realistic options. Weigh benefits, costs, risks, reversibility, complexity, and fit with the user's stated goal. Distinguish facts from assumptions. Eliminate clearly inferior options instead of giving every option equal weight. Make a recommendation when the evidence supports one, explain the few decisive reasons, name the biggest risk or condition that could change the answer, and give one concrete next action. Avoid ending with 'it depends' unless the missing information truly prevents a responsible choice."
+}

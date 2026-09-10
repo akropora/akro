@@ -1,0 +1,8 @@
+{
+  "name": "promptup",
+  "type": "tool",
+  "syntax": "/promptup",
+  "description": "Rewrite a rough request into a clearer, richer prompt for small local models without answering it.",
+  "entrypoint": "run.sh",
+  "activity": "enhancing prompt"
+}

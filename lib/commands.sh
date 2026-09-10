@@ -15,6 +15,7 @@ command_help() {
   /brain             show Brain and knowledge status
   /skills            show auto-detected skills
   /prompt            inspect the last prompt sent to the main model
+  /sandbox           switch to the isolated sandbox project
   /CLEAR             clear current project's chats, docs, memory and knowledge
   /help or /?        show this help
   /quit              exit
@@ -36,9 +37,13 @@ command_model_picker() {
     MENU_ITEMS=(); MENU_LABELS=()
     while IFS= read -r model; do
         [[ -n "$model" ]] || continue
+        if [[ -n "${AKRO_VISIBLE_MODELS:-}" ]]; then
+            case ",$AKRO_VISIBLE_MODELS," in *",$model,"*) ;; *) continue ;; esac
+        fi
         MENU_ITEMS+=("$model")
         if [[ "$model" == "$BASE_MODEL" ]]; then MENU_LABELS+=("${model%:latest}  ✓"); else MENU_LABELS+=("${model%:latest}"); fi
     done < <(jq -r '.[]' <<< "$models")
+    (( ${#MENU_ITEMS[@]} > 0 )) || { ui_notice 'No configured visible models are installed.' "$YELLOW"; return 1; }
     if ui_picker 'Models' 'Installed Ollama models.'; then idx=$PICKER_RESULT; BASE_MODEL="${MENU_ITEMS[$idx]}"; chat_autosave; ui_redraw; ui_notice "Model: $BASE_MODEL" "$GREEN"; else ui_redraw; fi
 }
 
@@ -133,12 +138,17 @@ command_brain_status() {
 }
 
 command_learn() {
-    local mode="$1"
-    printf '%bBrain learning · %s%b\n\n' "$WHITE" "$CURRENT_PROJECT_NAME" "$RESET"
-    brain_learn_project "$mode"
-    printf 'Learned: %s | Unchanged: %s | Failed: %s\n' "$BRAIN_LEARNED" "$BRAIN_SKIPPED" "$BRAIN_FAILED"
-    [[ -z "$BRAIN_LAST_FAILURES" ]] || printf '\nFailures:\n%s\n' "$BRAIN_LAST_FAILURES"
-    printf '\n'
+    local mode="$1" result="" pid=0
+    if project_is_isolated; then ui_notice 'Sandbox does not write long-term memory.' "$YELLOW"; return 0; fi
+    result="$(mktemp "$AKRO_RUNTIME_DIR/learn.XXXXXX")"
+    (brain_learn_project "$mode"; jq -n --argjson learned "$BRAIN_LEARNED" --argjson skipped "$BRAIN_SKIPPED" --argjson failed "$BRAIN_FAILED" --arg failures "$BRAIN_LAST_FAILURES" '{learned:$learned,skipped:$skipped,failed:$failed,failures:$failures}' > "$result") & pid=$!
+    ui_activity_wait "$pid" "learning" || true
+    if [[ -s "$result" ]]; then
+        printf 'Learned: %s | Unchanged: %s | Failed: %s\n' "$(jq -r '.learned' "$result")" "$(jq -r '.skipped' "$result")" "$(jq -r '.failed' "$result")"
+        local failures="$(jq -r '.failures' "$result")"; [[ -z "$failures" ]] || printf '\nFailures:\n%s\n' "$failures"
+        printf '\n'
+    else ui_notice 'Brain learning failed.' "$RED"; fi
+    rm -f "$result"
 }
 
 command_prompt_inspect() {
@@ -173,6 +183,7 @@ handle_user_command() {
         /learn) command_learn incremental; return 0 ;;
         /learn-all) command_learn all; return 0 ;;
         /prompt) command_prompt_inspect; return 0 ;;
+        /sandbox) chat_new; project_use sandbox; ui_redraw; ui_notice "Sandbox: isolated mode. Nothing here is retrieved into or written to long-term memory." "$YELLOW"; return 0 ;;
         /project) command_project_picker; return 0 ;;
         /project\ *) chat_new; project_use "${input#/project }"; ui_redraw; ui_notice "Project: $CURRENT_PROJECT_NAME" "$GREEN"; return 0 ;;
         /save) ui_notice 'Usage: /save name' "$GRAY"; return 0 ;;

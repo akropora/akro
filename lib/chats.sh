@@ -45,10 +45,13 @@ chat_write() {
 chat_autosave() { [[ -z "$CURRENT_CHAT_FILE" ]] || chat_write "$CURRENT_CHAT_FILE" "$CURRENT_CHAT_NAME"; }
 
 chat_start_from_prompt() {
-    local first="$1"
+    local first="$1" title_file="" pid=0
     [[ -z "$CURRENT_CHAT_FILE" ]] || return 0
-    printf '%b[naming chat...]%b\n' "$GRAY" "$RESET"
-    CURRENT_CHAT_NAME="$(chat_generate_title "$first")"
+    title_file="$(mktemp "$AKRO_RUNTIME_DIR/title.XXXXXX")"
+    (chat_generate_title "$first" > "$title_file") & pid=$!
+    ui_activity_wait "$pid" "naming chat" || true
+    CURRENT_CHAT_NAME="$(cat "$title_file")"; rm -f "$title_file"
+    [[ -n "$CURRENT_CHAT_NAME" ]] || CURRENT_CHAT_NAME="$(chat_title_fallback "$first")"
     CURRENT_CHAT_ID="$(chat_id)"; CURRENT_CHAT_CREATED="$(akro_timestamp)"; CURRENT_CHAT_FILE="$(chat_unique_path "$CURRENT_CHAT_NAME")"
     chat_write "$CURRENT_CHAT_FILE" "$CURRENT_CHAT_NAME"
     printf '%b[chat: %s]%b\n\n' "$GREEN" "$CURRENT_CHAT_NAME" "$RESET"

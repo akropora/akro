@@ -26,7 +26,7 @@ ui_header() {
     printf '\033[2J\033[H'
     printf '%b%s%b\n' "$WHITE" "$UI_TITLE" "$RESET"
     printf '%bmodel:%b   %s\n' "$GRAY" "$RESET" "${BASE_MODEL%:latest}"
-    printf '%bproject:%b %s\n' "$GRAY" "$RESET" "$CURRENT_PROJECT_NAME"
+    if project_is_isolated; then printf '%bproject:%b %s %b[isolated]%b\n' "$GRAY" "$RESET" "$CURRENT_PROJECT_NAME" "$YELLOW" "$RESET"; else printf '%bproject:%b %s\n' "$GRAY" "$RESET" "$CURRENT_PROJECT_NAME"; fi
     printf '%bchat:%b    %s\n' "$GRAY" "$RESET" "$(session_title)"
     printf '%bcontext:%b ' "$GRAY" "$RESET"; ui_context_bar "$LAST_PROMPT_TOKENS"; printf '\n\n'
 }
@@ -66,22 +66,17 @@ project_instructions() {
     cat "$file"
 }
 
-auto_learn_current_chat() {
-    [[ "${AKRO_AUTO_LEARN:-1}" == "1" && -n "$CURRENT_CHAT_FILE" ]] || return 0
-    local out="$(mktemp "$AKRO_RUNTIME_DIR/autolearn.XXXXXX")" err="$(mktemp "$AKRO_RUNTIME_DIR/autolearn-err.XXXXXX")" pid=0 rc=0
-    (brain_learn_source "$CURRENT_PROJECT_DIR" chat "$CURRENT_CHAT_FILE" > "$out" 2> "$err") & pid=$!
-    if ui_activity_wait "$pid" "remembering"; then rc=0; else rc=$?; fi
-    if [[ "$rc" != 0 && "$rc" != 2 ]]; then ui_notice "Brain note skipped: $(cat "$err")" "$YELLOW"; fi
-    rm -f "$out" "$err"
-}
-
 run_chat_turn() {
     local original="$1" prepared="$2" memory="" knowledge="" instructions="" request="" history="" request_messages="" response_file="" error_file="" assistant="" api_error=""
     chat_start_from_prompt "$original" || return 1
-    memory="$(brain_context "$original" 2>/dev/null || true)"
-    knowledge="$(knowledge_context "$original" 2>/dev/null || true)"
-    memory="$(printf '%s' "$memory" | head -c "$BRAIN_CONTEXT_MAX_CHARS")"
-    knowledge="$(printf '%s' "$knowledge" | head -c "$KNOWLEDGE_CONTEXT_MAX_CHARS")"
+    if ! project_is_isolated; then
+        local memfile="$(mktemp "$AKRO_RUNTIME_DIR/recall.XXXXXX")" knowfile="$(mktemp "$AKRO_RUNTIME_DIR/knowledge.XXXXXX")" pid=0
+        (brain_context "$original" > "$memfile" 2>/dev/null) & pid=$!; ui_activity_wait "$pid" "recalling" || true
+        (knowledge_context "$original" > "$knowfile" 2>/dev/null) & pid=$!; ui_activity_wait "$pid" "retrieving" || true
+        memory="$(head -c "$BRAIN_CONTEXT_MAX_CHARS" "$memfile")"
+        knowledge="$(head -c "$KNOWLEDGE_CONTEXT_MAX_CHARS" "$knowfile")"
+        rm -f "$memfile" "$knowfile"
+    fi
     instructions="$(project_instructions 2>/dev/null || true)"
     request="$prepared"
     if [[ -n "$instructions$memory$knowledge" ]]; then
@@ -104,18 +99,22 @@ run_chat_turn() {
     LAST_PROMPT_TOKENS="$(jq -rs '[.[]|.prompt_eval_count//empty]|last//0' "$response_file" 2>/dev/null || printf 0)"
     LAST_REPLY_TOKENS="$(jq -rs '[.[]|.eval_count//empty]|last//0' "$response_file" 2>/dev/null || printf 0)"
     chat_append_assistant "$assistant" "$BASE_MODEL"; chat_autosave
-    printf '%bcontext:%b ' "$GRAY" "$RESET"; ui_context_bar "$LAST_PROMPT_TOKENS"; printf '   %breply:%b %s\n\n' "$GRAY" "$RESET" "$(ui_format_count "$LAST_REPLY_TOKENS")"
     rm -f "$response_file" "$error_file"
-    auto_learn_current_chat
+    # Streaming stays immediate; repaint once through Glow so the finished answer is rendered correctly.
+    ui_redraw
+    printf '%bcontext:%b ' "$GRAY" "$RESET"; ui_context_bar "$LAST_PROMPT_TOKENS"; printf '   %breply:%b %s\n\n' "$GRAY" "$RESET" "$(ui_format_count "$LAST_REPLY_TOKENS")"
+    if brain_queue_turn "$CURRENT_CHAT_FILE"; then printf '%b[/ remembering in background...]%b\n\n' "$GRAY" "$RESET"; fi
 }
 
 main_loop() {
     local input="" rc=0
     while true; do
+        ui_background_status
         USER_INPUT=""; read_prompt || continue; input="$USER_INPUT"; [[ -n "$input" ]] || continue
         if [[ "$input" == '"""' ]]; then read_multiline; input="$USER_INPUT"; [[ -n "$input" ]] || continue; fi
         if handle_user_command "$input"; then continue; else rc=$?; (( rc != 10 )) || break; fi
         if ! process_skills "$input"; then ui_notice "Skill error: $SKILL_ERROR" "$RED"; continue; fi
+        if [[ -n "$SKILL_USED" ]]; then printf '%b[skills: %s]%b\n\n' "$GRAY" "$(printf '%s' "$SKILL_USED" | sed 's/ / -> /g')" "$RESET"; fi
         [[ -z "$SKILL_NOTICE" ]] || ui_notice "$SKILL_NOTICE" "$GRAY"
         run_chat_turn "$input" "$SKILL_PROMPT" || true
     done

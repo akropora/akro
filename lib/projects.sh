@@ -9,8 +9,9 @@ project_init_root() {
     akro_json_file_init "$AKRO_STATE_FILE" '{"version":2,"current_project":"default"}'
     local slug=""
     slug="$(jq -r '.current_project // "default"' "$AKRO_STATE_FILE" 2>/dev/null || printf 'default')"
-    project_use "$slug" >/dev/null || project_use default >/dev/null
     project_scope_init "$AKRO_GLOBAL_DIR"
+    if [[ ! -d "$AKRO_PROJECTS_DIR/sandbox" ]]; then project_create sandbox >/dev/null; fi
+    project_use "$slug" >/dev/null || project_use default >/dev/null
 }
 
 project_scope_init() {
@@ -26,7 +27,9 @@ project_create() {
     slug="$(akro_slug "$name")"
     [[ "$slug" != "global" ]] || { printf 'global is reserved for cross-project memory.\n' >&2; return 1; }
     project_scope_init "$AKRO_PROJECTS_DIR/$slug"
-    akro_json_file_init "$AKRO_PROJECTS_DIR/$slug/project.json" "$(jq -n --arg name "$name" --arg slug "$slug" --arg created "$(akro_timestamp)" '{version:2,name:$name,slug:$slug,created:$created}')"
+    local isolated=false
+    [[ "$slug" == "sandbox" ]] && isolated=true
+    akro_json_file_init "$AKRO_PROJECTS_DIR/$slug/project.json" "$(jq -n --arg name "$name" --arg slug "$slug" --arg created "$(akro_timestamp)" --argjson isolated "$isolated" '{version:2,name:$name,slug:$slug,created:$created,isolated:$isolated}')"
     printf '%s' "$slug"
 }
 
@@ -55,3 +58,5 @@ project_list() {
         printf '%s\t%s\n' "$slug" "$name"
     done | sort -t $'\t' -k2,2
 }
+
+project_is_isolated() { [[ "${CURRENT_PROJECT_SLUG:-}" == "sandbox" ]] || jq -e ' .isolated == true ' "$CURRENT_PROJECT_DIR/project.json" >/dev/null 2>&1; }

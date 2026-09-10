@@ -102,6 +102,7 @@ knowledge_context_scope() {
 
 knowledge_context() {
     local query="$1" global="" project=""
+    project_is_isolated && return 0
     global="$(knowledge_context_scope "$AKRO_GLOBAL_DIR" GLOBAL "$query" "$KNOWLEDGE_GLOBAL_CONTEXT" 2>/dev/null || true)"
     project="$(knowledge_context_scope "$CURRENT_PROJECT_DIR" PROJECT "$query" "$KNOWLEDGE_MAX_CONTEXT" 2>/dev/null || true)"
     [[ -z "$global" ]] || printf '%s\n' "$global"

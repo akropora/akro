@@ -115,3 +115,17 @@ The folder name should match the manifest `name`.
 ## Recommended rule
 
 Keep a skill small. If a skill needs a whole framework to work, it probably belongs outside Akro core and should expose a small command interface back into Akro.
+
+## V2.1 bundled reasoning skills
+
+Akro V2.1 includes:
+
+```text
+/promptup   refine a rough prompt with coral1.6-prompt
+/work       apply a deep execution framework
+/critic     stress-test weaknesses
+/verify     check correctness before finalizing
+/decision   force a structured choice and recommendation
+```
+
+Because skills are explicit and stackable, combinations such as `/promptup /work /verify` can give small models much stronger instructions without changing the selected main model.

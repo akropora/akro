@@ -107,3 +107,17 @@ Project data is isolated by default.
 Global Brain memory is retrieved alongside project memory. Project notes can be promoted to global memory from `/memory`.
 
 The main model does not need a special project-aware model. Akro assembles the right context before calling whatever model is selected.
+
+## V2.1 prompt refinement
+
+`/promptup` is a tool skill. It receives the current transformed request, retrieves at most a tiny amount of relevant memory, and asks `coral1.6-prompt` to rewrite the request. The improved request then continues through the remaining skill pipeline and finally reaches the selected main model.
+
+## Background remembering
+
+Normal chat turns no longer block on Librarian. After a response is saved, Akro snapshots only the newest user/assistant pair into a small job file. `lib/remember-worker.sh` processes jobs serially in the background with a smaller Librarian context and generation budget. Brain index writes use a simple lock plus atomic file replacement.
+
+Full `/learn` and `/learn-all` remain available for deliberate project-wide learning.
+
+## Sandbox
+
+The `sandbox` project is created automatically and is marked isolated. It does not retrieve global or project Brain memory, does not retrieve persistent knowledge, and never queues chat turns for remembering. `/document` in Sandbox is temporary and inline-only for small text files.

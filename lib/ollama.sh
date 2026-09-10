@@ -27,10 +27,11 @@ ollama_choose_default() {
     local models="" first=""
     models="$(ollama_models_json || true)"
     [[ -n "$models" && "$models" != "[]" ]] || return 1
-    if jq -e --arg m "$DEFAULT_MODEL" 'index($m) != null' <<< "$models" >/dev/null 2>&1; then
-        BASE_MODEL="$DEFAULT_MODEL"
-        return 0
+    if [[ -n "${AKRO_VISIBLE_MODELS:-}" ]]; then
+        models="$(jq -c --arg csv "$AKRO_VISIBLE_MODELS" '[.[] as $m | select((","+$csv+",") | contains(","+$m+",")) | $m]' <<< "$models" 2>/dev/null || printf '[]')"
+        [[ "$models" != "[]" ]] || return 1
     fi
+    if jq -e --arg m "$DEFAULT_MODEL" 'index($m) != null' <<< "$models" >/dev/null 2>&1; then BASE_MODEL="$DEFAULT_MODEL"; return 0; fi
     first="$(jq -r '.[0] // empty' <<< "$models")"
     [[ -n "$first" ]] || return 1
     BASE_MODEL="$first"
@@ -92,26 +93,39 @@ ollama_embed() {
 
 ollama_stream_chat() {
     local model="$1" messages_json="$2" response_file="$3" error_file="$4"
-    local payload="" line="" chunk="" thinking="" saw_content=0
+    local payload="" line="" chunk="" saw_content=0 fifo="" curl_pid=0 curl_rc=0 frame=0 spinner=""
+    local -a cycle=('|' '/' '-' '\\')
     payload="$(jq -n --arg model "$model" --argjson messages "$messages_json" --argjson ctx "$CHAT_NUM_CTX" --argjson predict "$CHAT_NUM_PREDICT" '{model:$model,messages:$messages,stream:true,keep_alive:"10m",options:{num_ctx:$ctx,num_predict:$predict}}')"
     : > "$response_file"; : > "$error_file"
-    printf '%b[thinking...]%b' "$GRAY" "$RESET"
-    while IFS= read -r line; do
+    fifo="$(mktemp -u "$AKRO_RUNTIME_DIR/stream.XXXXXX")"; mkfifo "$fifo" || return 1
+    curl -sS --connect-timeout 10 --max-time 600 -H 'Content-Type: application/json' -d "$payload" "$OLLAMA_CHAT_URL" > "$fifo" 2> "$error_file" &
+    curl_pid=$!
+    exec 3< "$fifo"
+    tput civis 2>/dev/null || true
+    while kill -0 "$curl_pid" 2>/dev/null; do
+        if IFS= read -r -t 0.10 line <&3; then
+            printf '%s\n' "$line" >> "$response_file"
+            chunk="$(jq -r '.message.content // empty' <<< "$line" 2>/dev/null || true)"
+            if [[ -n "$chunk" ]]; then
+                if (( saw_content == 0 )); then printf '\r\033[2K%b %s > %b' "$PURPLE" "${model%:latest}" "$RESET"; saw_content=1; fi
+                printf '%s' "$chunk"
+            fi
+        elif (( saw_content == 0 )); then
+            spinner="${cycle[$((frame % ${#cycle[@]}))]}"; printf '\r%b[%s thinking...]%b' "$GRAY" "$spinner" "$RESET"; frame=$((frame+1))
+        fi
+    done
+    while IFS= read -r line <&3; do
         printf '%s\n' "$line" >> "$response_file"
         chunk="$(jq -r '.message.content // empty' <<< "$line" 2>/dev/null || true)"
-        thinking="$(jq -r '.message.thinking // empty' <<< "$line" 2>/dev/null || true)"
-        if [[ -n "$thinking" && $saw_content -eq 0 ]]; then
-            printf '\r%b[thinking...]%b' "$GRAY" "$RESET"
-        fi
         if [[ -n "$chunk" ]]; then
-            if (( saw_content == 0 )); then
-                printf '\r\033[2K%b %s > %b' "$PURPLE" "${model%:latest}" "$RESET"
-                saw_content=1
-            fi
+            if (( saw_content == 0 )); then printf '\r\033[2K%b %s > %b' "$PURPLE" "${model%:latest}" "$RESET"; saw_content=1; fi
             printf '%s' "$chunk"
         fi
-    done < <(curl -sS --connect-timeout 10 --max-time 600 -H 'Content-Type: application/json' -d "$payload" "$OLLAMA_CHAT_URL" 2> "$error_file")
-    local rc=${PIPESTATUS[0]:-0}
+    done
+    exec 3<&-
+    wait "$curl_pid" || curl_rc=$?
+    rm -f "$fifo"
+    tput cnorm 2>/dev/null || true
     if (( saw_content == 0 )); then printf '\r\033[2K'; else printf '\n\n'; fi
-    return "$rc"
+    return "$curl_rc"
 }

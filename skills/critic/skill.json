@@ -1,0 +1,7 @@
+{
+  "name": "critic",
+  "type": "prompt",
+  "syntax": "/critic",
+  "description": "Stress-test an idea, draft, plan, architecture, or answer and surface the weaknesses that matter most.",
+  "instruction": "Act as a rigorous critic. First identify the intended goal and important constraints. Then find unsupported assumptions, contradictions, weak logic, missing requirements, realistic failure modes, hidden dependencies, and unnecessary complexity. Separate major issues from minor ones. Do not attack for the sake of sounding critical and do not rewrite everything automatically. Explain why each important weakness matters and give the smallest useful improvement for it. End with a short verdict on whether the work is sound, needs revision, or should be reconsidered."
+}
