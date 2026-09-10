@@ -72,7 +72,7 @@ ui_activity_wait() {
     local pid="$1"
     local label="${2:-working}"
     local frame=0 spinner=""
-    local -a cycle=('|' '/' '-' '\\')
+    local -a cycle=('⠾' '⠽' '⠻' '⠟' '⠯' '⠟' '⠻' '⠽')
     [[ "${AKRO_SHOW_ACTIVITY:-1}" == "1" ]] || { wait "$pid"; return $?; }
     tput civis 2>/dev/null || true
     while kill -0 "$pid" 2>/dev/null; do

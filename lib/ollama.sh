@@ -92,40 +92,116 @@ ollama_embed() {
 }
 
 ollama_stream_chat() {
-    local model="$1" messages_json="$2" response_file="$3" error_file="$4"
-    local payload="" line="" chunk="" saw_content=0 fifo="" curl_pid=0 curl_rc=0 frame=0 spinner=""
-    local -a cycle=('|' '/' '-' '\\')
-    payload="$(jq -n --arg model "$model" --argjson messages "$messages_json" --argjson ctx "$CHAT_NUM_CTX" --argjson predict "$CHAT_NUM_PREDICT" '{model:$model,messages:$messages,stream:true,keep_alive:"10m",options:{num_ctx:$ctx,num_predict:$predict}}')"
-    : > "$response_file"; : > "$error_file"
-    fifo="$(mktemp -u "$AKRO_RUNTIME_DIR/stream.XXXXXX")"; mkfifo "$fifo" || return 1
-    curl -sS --connect-timeout 10 --max-time 600 -H 'Content-Type: application/json' -d "$payload" "$OLLAMA_CHAT_URL" > "$fifo" 2> "$error_file" &
+    local model="$1"
+    local messages_json="$2"
+    local response_file="$3"
+    local error_file="$4"
+
+    local payload=""
+    local line=""
+    local chunk=""
+    local saw_content=0
+    local fifo=""
+    local curl_pid=0
+    local curl_rc=0
+    local spinner_pid=0
+
+    local -a cycle=('⠾' '⠽' '⠻' '⠟' '⠯' '⠟' '⠻' '⠽')
+
+    payload="$(jq -n \
+        --arg model "$model" \
+        --argjson messages "$messages_json" \
+        --argjson ctx "$CHAT_NUM_CTX" \
+        --argjson predict "$CHAT_NUM_PREDICT" \
+        '{
+            model:$model,
+            messages:$messages,
+            stream:true,
+            think:false,
+            keep_alive:"10m",
+            options:{
+                num_ctx:$ctx,
+                num_predict:$predict
+            }
+        }'
+    )"
+
+    : > "$response_file"
+    : > "$error_file"
+
+    fifo="$(mktemp -u "$AKRO_RUNTIME_DIR/stream.XXXXXX")"
+    mkfifo "$fifo" || return 1
+
+    curl -sS \
+        --connect-timeout 10 \
+        --max-time 600 \
+        -H 'Content-Type: application/json' \
+        -d "$payload" \
+        "$OLLAMA_CHAT_URL" \
+        > "$fifo" \
+        2> "$error_file" &
+
     curl_pid=$!
+
     exec 3< "$fifo"
+
     tput civis 2>/dev/null || true
-    while kill -0 "$curl_pid" 2>/dev/null; do
-        if IFS= read -r -t 0.10 line <&3; then
-            printf '%s\n' "$line" >> "$response_file"
-            chunk="$(jq -r '.message.content // empty' <<< "$line" 2>/dev/null || true)"
-            if [[ -n "$chunk" ]]; then
-                if (( saw_content == 0 )); then printf '\r\033[2K%b %s > %b' "$PURPLE" "${model%:latest}" "$RESET"; saw_content=1; fi
-                printf '%s' "$chunk"
-            fi
-        elif (( saw_content == 0 )); then
-            spinner="${cycle[$((frame % ${#cycle[@]}))]}"; printf '\r%b[%s thinking...]%b' "$GRAY" "$spinner" "$RESET"; frame=$((frame+1))
-        fi
-    done
+
+    (
+        frame=0
+        while kill -0 "$curl_pid" 2>/dev/null; do
+            spinner="${cycle[$((frame % ${#cycle[@]}))]}"
+            printf '\r%b[%s thinking...]%b' "$GRAY" "$spinner" "$RESET"
+            frame=$((frame + 1))
+            sleep 0.10
+        done
+    ) &
+
+    spinner_pid=$!
+
     while IFS= read -r line <&3; do
         printf '%s\n' "$line" >> "$response_file"
+
         chunk="$(jq -r '.message.content // empty' <<< "$line" 2>/dev/null || true)"
+
         if [[ -n "$chunk" ]]; then
-            if (( saw_content == 0 )); then printf '\r\033[2K%b %s > %b' "$PURPLE" "${model%:latest}" "$RESET"; saw_content=1; fi
+            if (( saw_content == 0 )); then
+                saw_content=1
+
+                kill "$spinner_pid" 2>/dev/null || true
+                wait "$spinner_pid" 2>/dev/null || true
+                spinner_pid=0
+
+                printf '\r\033[2K%b %s > %b' \
+                    "$PURPLE" "${model%:latest}" "$RESET"
+            fi
+
             printf '%s' "$chunk"
         fi
     done
+
     exec 3<&-
-    wait "$curl_pid" || curl_rc=$?
+
+    if (( spinner_pid > 0 )); then
+        kill "$spinner_pid" 2>/dev/null || true
+        wait "$spinner_pid" 2>/dev/null || true
+    fi
+
+    if wait "$curl_pid"; then
+        curl_rc=0
+    else
+        curl_rc=$?
+    fi
+
     rm -f "$fifo"
+
     tput cnorm 2>/dev/null || true
-    if (( saw_content == 0 )); then printf '\r\033[2K'; else printf '\n\n'; fi
+
+    if (( saw_content == 0 )); then
+        printf '\r\033[2K'
+    else
+        printf '\n\n'
+    fi
+
     return "$curl_rc"
 }
