@@ -73,6 +73,36 @@ To see your installed models:
 ```bash
 ollama list
 ```
+## Install Akro Helper Models
+
+Akro uses two small custom Ollama models for background tasks:
+
+* `akropora/neuron` for fast utility work such as chat naming and lightweight internal tasks
+* `akropora/librarian` for long-term memory extraction and structured Brain notes
+
+Pull the latest versions with:
+
+```bash
+ollama pull akropora/neuron:latest
+ollama pull akropora/librarian:latest
+```
+
+Akro expects the local model names `neuron:latest` and `librarian:latest` by default.
+
+Create local aliases after pulling:
+
+```bash
+ollama cp akropora/neuron:latest neuron:latest
+ollama cp akropora/librarian:latest librarian:latest
+```
+
+You can confirm they are installed with:
+
+```bash
+ollama list
+```
+
+After that, Akro can use the models normally without any configuration changes.
 
 ## Install Akro
 
