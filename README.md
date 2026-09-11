@@ -34,7 +34,6 @@ Optional:
 
 - `glow` for rendered Markdown
 - Tavily API key for `/search`
-- `embeddinggemma:latest` for semantic retrieval
 
 ## Install
 
