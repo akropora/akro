@@ -129,3 +129,26 @@ Akro V2.1 includes:
 ```
 
 Because skills are explicit and stackable, combinations such as `/promptup /work /verify` can give small models much stronger instructions without changing the selected main model.
+
+## `/agentic`
+
+Agentic is an interactive tool skill and should be the final skill in a pipeline.
+
+```text
+Fix the rendering bug /agentic
+Improve this rough task first /promptup /agentic
+```
+
+Its `run.sh` owns the agent loop. It may read and search automatically, but write operations ask the user for confirmation unless `AGENT_CONFIRM_WRITES=0` is explicitly configured.
+
+Unlike ordinary tool skills, Agentic returns a completed-turn object:
+
+```json
+{
+  "complete": true,
+  "response": "Finished work summary",
+  "model": "coral1.6-agent:latest"
+}
+```
+
+Completed-turn skills must be last because there is no later main-model prompt to modify.

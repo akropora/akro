@@ -1,23 +1,24 @@
-# Akro V2.1
+# Akro V2.2
 
-Akro is a local-first terminal AI environment built around Ollama, Bash, explicit slash-command skills, small helper models, long-term memory, and project-scoped knowledge.
+Akro is a local-first terminal AI environment for Ollama. It combines normal chat, explicit slash-command skills, project-scoped memory, searchable plain-text knowledge, small helper models, and now a bounded tool-using agent.
 
-V2.1 focuses on making small models more capable without making Akro feel heavier: **retrieve the right context, refine the prompt, execute with the current model, and move slow memory work into the background.**
+V2.2 adds one major idea: **small local models can do real work when Akro gives them safe tools, compact context, and a tight execution loop.**
 
 ## Highlights
 
+- Local Ollama chat with streaming output
+- Glow-rendered finished responses
 - Folder-based skills with automatic discovery
-- Explicit, stackable slash commands
-- `/promptup` prompt refinement using `coral1.6-prompt`
-- `/work`, `/critic`, `/verify`, and `/decision`
+- Explicit, stackable slash-command skills
+- `/promptup`, `/work`, `/critic`, `/verify`, `/decision`
+- New `/agentic` file-and-code agent
 - Project-specific chats, memory, documents, and knowledge
-- Built-in fully isolated `sandbox` project
-- Hybrid memory retrieval with optional embeddings
-- Exact plain-text document retrieval
-- Background incremental remembering
-- Streaming responses plus ASCII activity loaders
-- Automatic Glow repaint after streaming completes
-- Official `AKRO_VISIBLE_MODELS` support
+- Built-in isolated `sandbox`
+- Background remembering with Librarian
+- Hybrid retrieval with optional embeddings
+- Plain-text document chunking and retrieval
+- Official `AKRO_VISIBLE_MODELS` allowlist
+- Braille activity loaders across slow operations
 - `/prompt` inspection for debugging transformed prompts
 
 ## Requirements
@@ -25,15 +26,19 @@ V2.1 focuses on making small models more capable without making Akro feel heavie
 Required:
 
 - macOS or another Unix-like system with Bash
-- Ollama
+- [Ollama](https://ollama.com/)
 - `curl`
 - `jq`
-- standard tools such as `awk`, `sed`, `grep`, `cksum`, `mktemp`, `tput`, and `stty`
+- standard shell tools such as `awk`, `sed`, `grep`, `find`, `mktemp`, `tput`, and `stty`
 
-Optional:
+Recommended:
 
-- `glow` for rendered Markdown
+- [Glow](https://github.com/charmbracelet/glow) for Markdown rendering
+- `rg` / ripgrep for faster Agentic search
+- `perl` for Agentic's exact `replace_text` tool
+- `shellcheck` for optional shell verification
 - Tavily API key for `/search`
+- `embeddinggemma:latest` for semantic retrieval
 
 ## Install
 
@@ -56,61 +61,72 @@ or directly:
 ./chat.sh
 ```
 
-Akro stores persistent user data in:
+Persistent Akro data lives outside the repo in:
 
 ```text
 ~/.akro/
 ```
 
-## Install Akro helper models
+Your local `.env` also stays outside Git history because it is ignored by `.gitignore`.
 
-Pull the latest Brain models:
+## Helper models
+
+Akro uses small helper models for specific jobs.
 
 ```bash
 ollama pull akropora/neuron:latest
 ollama pull akropora/librarian:latest
+ollama pull akropora/coral1.6-prompt:latest
+
 ollama cp akropora/neuron:latest neuron:latest
 ollama cp akropora/librarian:latest librarian:latest
+ollama cp akropora/coral1.6-prompt:latest coral1.6-prompt:latest
 ```
 
-Build Coral 1.6 Prompt from the included Modelfile:
+V2.2 also introduces `coral1.6-agent`. Until it is published under `akropora`, create it from the Modelfile provided with the V2.2 release instructions. After publication, users can install it with:
 
 ```bash
-ollama create coral1.6-prompt -f models/Modelfile.coral1.6-prompt
+ollama pull akropora/coral1.6-agent:latest
+ollama cp akropora/coral1.6-agent:latest coral1.6-agent:latest
 ```
-
-After `akropora/coral1.6-prompt` is published, users can pull and alias it the same way as Neuron and Librarian.
 
 ## Configuration
 
-Create your local environment file:
+Create a local environment file:
 
 ```bash
 cp examples/.env.example .env
 ```
 
-Your `.env` is local and should not be committed.
-
-### Show only selected chat models
-
-Set a comma-separated allowlist:
+Important examples:
 
 ```bash
-AKRO_VISIBLE_MODELS="coral1.6:latest,coral1.6-worker:latest,coral1.6-coder:latest,qwen3.5:9b-q4_k_m"
+DEFAULT_MODEL="coral1.6:latest"
+NEURON_MODEL="neuron:latest"
+LIBRARIAN_MODEL="librarian:latest"
+PROMPT_MODEL="coral1.6-prompt:latest"
+AGENT_MODEL="coral1.6-agent:latest"
+TAVILY_API_KEY=""
 ```
 
-If `AKRO_VISIBLE_MODELS` is blank or unset, `/model` lists every installed Ollama model.
+### Limit models shown by `/model`
 
-## Commands
+```bash
+AKRO_VISIBLE_MODELS="coral1.6:latest,coral1.6-worker:latest,coral1.6-coder:latest"
+```
+
+If `AKRO_VISIBLE_MODELS` is empty, Akro lists every installed Ollama model.
+
+## Main commands
 
 ```text
-/model             choose an Ollama model
+/model             choose an installed Ollama model
 /chats             browse chats in the current project
 /new               start a new chat
 /save name         rename the current chat
 /project           switch projects
 /project name      create or switch to a project
-/sandbox           enter the isolated sandbox project
+/sandbox           switch to fully isolated Sandbox
 /memory            browse Brain notes
 /learn             learn changed project sources
 /learn-all         rebuild project Brain notes
@@ -124,105 +140,155 @@ If `AKRO_VISIBLE_MODELS` is blank or unset, `/model` lists every installed Ollam
 
 ## Skills
 
-Skills are suffix slash commands and can be stacked.
+Skills are explicit suffix commands and can be stacked.
 
 ```text
 Explain this simply /concise
-Fix this function /plsfix
-What changed in Ollama this week? /search
-Review this proposal /critic
-Check this command before I run it /verify
-Should I rewrite this service in Python? /decision
-Solve this difficult task completely /work
-Turn this rough idea into a better prompt /promptup
+Fix this code /plsfix
+Search current information /search
+Turn this rough request into a stronger prompt /promptup
+Solve this complex task deeply /work
+Find weaknesses in this plan /critic
+Check this result carefully /verify
+Make a hard choice /decision
+Inspect and fix this repository /agentic
 ```
 
-### Prompt refinement
+### Promptup + Agentic
 
-`/promptup` sends the request plus a very small amount of relevant Brain context to `coral1.6-prompt`. The helper model rewrites the request into clearer instructions, then the currently selected model answers the improved prompt.
-
-Akro visibly reports that the prompt was enhanced. `/prompt` lets you inspect what ultimately reached the main model.
-
-### Powerful combinations
-
-Small models often benefit from combining focused skills:
+One of V2.2's strongest combinations is:
 
 ```text
-rough request /promptup /work
+clean up this repo and fix the rendering bug /promptup /agentic
 ```
 
-Refine the instructions first, then apply the deep execution framework.
+`/promptup` first turns the rough request into clearer instructions. `/agentic` then uses those instructions to inspect the workspace, make approved changes, run checks, observe the results, and finish with a summary.
+
+`/agentic` completes the turn itself, so it must be the last skill in a pipeline.
+
+## Agentic
+
+`/agentic` is different from `/work`.
 
 ```text
-architecture idea /work /critic
+/work
+think deeply -> produce a finished model response
+
+/agentic
+inspect -> act -> observe -> revise -> verify -> finish
 ```
 
-Build the solution, while instructing the main model to actively look for weaknesses.
+By default, Agentic uses the directory where Akro was launched as its workspace:
+
+```bash
+cd ~/projects/my-repo
+akro
+```
+
+Then:
 
 ```text
-implementation request /promptup /work /verify
+Find the Markdown rendering bug, fix it, and verify the shell syntax /agentic
 ```
 
-Clarify the task, execute it deeply, then verify the result before finalizing.
+You can restrict it to a child directory:
 
 ```text
-current technical question /search /promptup /work /verify
+Clean up the tests /agentic [tests]
 ```
 
-Research, refine, execute, and check in one explicit pipeline.
+### Agent tools
 
-Akro shows the active skill pipeline so tool use never feels hidden.
+V2.2 intentionally does **not** give a 2B model unrestricted shell access. It gets a curated toolbox:
 
-## Background remembering
+- `list_files`
+- `read_file`
+- `search_files`
+- `write_file`
+- `replace_text`
+- `make_directory`
+- `run_check`
 
-V2.1 no longer makes you wait for Librarian after every response.
+`run_check` supports controlled checks including Git status/diff, Bash syntax, JSON validation, optional ShellCheck, and test scripts under `tests/`.
 
-After the main model finishes, Akro snapshots only the newest user/assistant turn and queues a compact Librarian job in the background. The next prompt becomes available immediately.
+### Permissions
+
+Reads happen automatically. Writes require confirmation by default:
 
 ```text
-[/ remembering in background...]
+Agent wants to replace text in: lib/ui.sh
+Allow? [y/N]
 ```
 
-On a later prompt cycle, Akro reports when the background job completed.
+Set this in `.env` only if you deliberately want full write permission inside the workspace:
 
-Incremental remembering uses a much smaller context and output budget than full `/learn`, which reduces latency and memory pressure. Full project rebuilds remain available through `/learn-all`.
+```bash
+AGENT_CONFIRM_WRITES=0
+```
 
-## Sandbox
+Akro blocks Agentic from directly reading or modifying `.git`, `.env`, `.ssh`, paths outside the workspace, and symlink targets.
 
-Akro creates a `sandbox` project automatically.
+### Agent limits
 
-Enter it with:
+Useful `.env` settings:
+
+```bash
+AGENT_MODEL="coral1.6-agent:latest"
+AGENT_MAX_STEPS=20
+AGENT_NUM_CTX=8192
+AGENT_NUM_PREDICT=1600
+AGENT_MAX_READ_CHARS=18000
+AGENT_MAX_TOOL_OUTPUT=12000
+AGENT_MAX_WRITE_CHARS=50000
+AGENT_CONTEXT_MAX_CHARS=2200
+AGENT_CONFIRM_WRITES=1
+AGENT_REPEAT_LIMIT=2
+```
+
+These defaults are intentionally reasonable for an 8 GB Apple Silicon machine. A 16 GB machine can raise `AGENT_NUM_CTX` if needed.
+
+Every agent run writes a lightweight JSONL execution log under the active project's data directory:
+
+```text
+~/.akro/projects/<project>/agent/runs/
+```
+
+## Projects and Sandbox
+
+Projects keep unrelated work separate. Each project has its own chats, memory, documents, and knowledge.
+
+```text
+/project
+/project akro
+```
+
+Akro automatically creates `sandbox`:
 
 ```text
 /sandbox
 ```
 
-Sandbox is fully isolated:
+Sandbox is fully isolated. Chats still save locally, but no global/project memory is retrieved, nothing is written to long-term Brain memory, and documents are not permanently indexed.
 
-- chats still save locally
-- no global or project memory is retrieved
-- chats are never written into long-term memory
-- documents are not copied, indexed, or remembered
-- small `/document` files can be supplied temporarily to the current request
-- nothing from Sandbox affects other projects
+## Background remembering
 
-The header marks Sandbox as `[isolated]` so it is always obvious when memory is off.
+After a normal response, Akro queues only the newest user/assistant turn for Librarian in the background. You immediately get the prompt back while remembering finishes independently.
 
-## Brain and knowledge
+```text
+[/ remembering in background...]
+```
 
-Akro separates compact long-term **memory** from exact document **knowledge**.
-
-For ordinary projects, Akro retrieves only a small amount of relevant information using keyword relevance, importance, recency, and optional semantic similarity. This is designed to help small models without requiring giant context windows.
-
-## Activity and rendering
-
-Slow operations use a shared ASCII activity loader, including thinking, search, prompt refinement, retrieval, indexing, and other tool work.
-
-Main model output still streams immediately. When generation finishes, Akro repaints the conversation through Glow so Markdown is rendered without requiring `/skills` or another manual redraw.
+This keeps small-model chat responsive without giving up long-term memory.
 
 ## Plain-text documents
 
-`/document [path]` intentionally supports readable plain-text files only. Ordinary projects copy, chunk, index, and learn the document immediately. Sandbox supplies small documents only for the current request and never persists them.
+Akro intentionally focuses on readable text files. Use:
+
+```text
+Summarize this /document [~/notes/report.txt]
+```
+
+Ordinary projects copy, chunk, index, and learn documents. Sandbox only supplies small documents to the current request and never persists them.
 
 ## Repository layout
 
@@ -255,21 +321,11 @@ akro/
     critic/
     verify/
     decision/
-
-  models/
-    Modelfile.coral1.6-prompt
+    agentic/
 
   docs/
-    ARCHITECTURE.md
-    SKILLS.md
-    MIGRATION.md
-    UPGRADE.md
-
   examples/
-    .env.example
-
   tests/
-    smoke.sh
 ```
 
 ## Test
@@ -278,22 +334,23 @@ akro/
 ./tests/smoke.sh
 ```
 
-You can also check all shell syntax with:
+For the whole shell tree:
 
 ```bash
-bash -n chat.sh config.sh lib/*.sh skills/*/run.sh
+find . -name '*.sh' -print0 | xargs -0 -n1 bash -n
 ```
 
-## Design principles
+## Design philosophy
 
-1. Local first.
-2. Small models first.
-3. Small context windows first.
-4. Retrieval beats giant prompts.
-5. Better prompts can unlock smaller models.
-6. Tools stay explicit and visible.
-7. Skills install without changing Akro core.
-8. Tiny models organize while the selected model does the main work.
-9. Memory should never block the next turn when it does not need to.
-10. Every slow action should visibly feel alive.
-11. Bash and JSON stay preferred until complexity genuinely earns something heavier.
+Akro stays intentionally small:
+
+- local first
+- small models first
+- retrieval over giant prompts
+- explicit tools over hidden automation
+- skills install without editing Akro core
+- tiny helper models handle narrow infrastructure jobs
+- slow work stays visibly alive
+- Bash and JSON unless complexity genuinely earns something heavier
+
+V2.2 extends that philosophy to agents: **give small models useful hands, but keep Akro in control of what those hands can touch.**

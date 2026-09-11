@@ -1,0 +1,9 @@
+{
+  "name": "agentic",
+  "type": "tool",
+  "syntax": "/agentic [workspace]",
+  "description": "Use Coral Agent to inspect, edit, and verify files through a bounded multi-step tool loop. Reads are automatic; writes require confirmation by default.",
+  "entrypoint": "run.sh",
+  "activity": "agent working",
+  "interactive": true
+}

@@ -25,6 +25,11 @@ Skills are suffix slash commands, for example:
   fix this code /plsfix
   latest Ollama release /search
   summarize this /document [~/notes/report.txt]
+  improve this rough request /promptup
+  inspect and fix this repo /agentic
+
+Agentic uses the directory Akro was launched from as its workspace.
+Use /agentic [subdir] to restrict it to a child directory.
 
 Enter """ by itself to start multiline input.
 TXT

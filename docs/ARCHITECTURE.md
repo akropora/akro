@@ -121,3 +121,11 @@ Full `/learn` and `/learn-all` remain available for deliberate project-wide lear
 ## Sandbox
 
 The `sandbox` project is created automatically and is marked isolated. It does not retrieve global or project Brain memory, does not retrieve persistent knowledge, and never queues chat turns for remembering. `/document` in Sandbox is temporary and inline-only for small text files.
+
+## V2.2 Agentic execution
+
+`/agentic` is the first Akro skill that can complete a turn without handing the transformed prompt to the selected chat model. `lib/skills.sh` now accepts either a normal `{prompt: ...}` tool result or a completed `{complete:true,response:...,model:...}` result.
+
+Agentic captures the shell working directory at Akro startup and treats it as a hard workspace boundary. The agent model receives a strict JSON action schema and can request only curated file/search/check operations. The skill validates paths and arguments before every operation, asks for confirmation before writes by default, records a lightweight JSONL run log, and returns a final response for normal Glow rendering.
+
+The model never receives arbitrary shell execution. This is deliberate. The V2.2 goal is a reliable small-model agent, not maximum host access.

@@ -1,7 +1,0 @@
-{
-  "name": "plaintext",
-  "type": "prompt",
-  "syntax": "/plaintext",
-  "description": "Give a plain text answer without any formatting.",
-  "instruction": "Answer in plain text without any formatting. Do not use markdown, HTML, or any other formatting. Respond purely in plain text."
-}

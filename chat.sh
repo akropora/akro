@@ -2,6 +2,7 @@
 set -uo pipefail
 
 AKRO_ROOT="${AKRO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)}"
+AKRO_WORKSPACE="${AKRO_WORKSPACE:-$PWD}"
 [[ -r "$AKRO_ROOT/.env" ]] && source "$AKRO_ROOT/.env"
 source "$AKRO_ROOT/config.sh"
 source "$AKRO_ROOT/lib/common.sh"
@@ -106,6 +107,21 @@ run_chat_turn() {
     if brain_queue_turn "$CURRENT_CHAT_FILE"; then printf '%b[/ remembering in background...]%b\n\n' "$GRAY" "$RESET"; fi
 }
 
+
+run_completed_skill_turn() {
+    local original="$1" response="$2" response_model="${3:-skill}"
+    chat_start_from_prompt "$original" || return 1
+    chat_append_user "$original"
+    chat_append_assistant "$response" "$response_model"
+    chat_autosave
+    printf '%b %s > %b\n' "$PURPLE" "${response_model%:latest}" "$RESET"
+    ui_render_markdown "$response"
+    printf '\n'
+    if brain_queue_turn "$CURRENT_CHAT_FILE"; then
+        printf '%b[/ remembering in background...]%b\n\n' "$GRAY" "$RESET"
+    fi
+}
+
 main_loop() {
     local input="" rc=0
     while true; do
@@ -116,7 +132,11 @@ main_loop() {
         if ! process_skills "$input"; then ui_notice "Skill error: $SKILL_ERROR" "$RED"; continue; fi
         if [[ -n "$SKILL_USED" ]]; then printf '%b[skills: %s]%b\n\n' "$GRAY" "$(printf '%s' "$SKILL_USED" | sed 's/ / -> /g')" "$RESET"; fi
         [[ -z "$SKILL_NOTICE" ]] || ui_notice "$SKILL_NOTICE" "$GRAY"
-        run_chat_turn "$input" "$SKILL_PROMPT" || true
+        if (( SKILL_COMPLETE == 1 )); then
+            run_completed_skill_turn "$input" "$SKILL_RESPONSE" "${SKILL_RESPONSE_MODEL:-skill}" || true
+        else
+            run_chat_turn "$input" "$SKILL_PROMPT" || true
+        fi
     done
 }
 

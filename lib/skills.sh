@@ -5,6 +5,9 @@ SKILL_USED=""
 SKILL_NOTICE=""
 SKILL_ERROR=""
 SKILL_VERBOSE=0
+SKILL_COMPLETE=0
+SKILL_RESPONSE=""
+SKILL_RESPONSE_MODEL=""
 
 skill_add_used() {
     local name="$1"
@@ -56,21 +59,28 @@ skill_parse_tail() {
 }
 
 skill_run_tool() {
-    local name="$1" arg="$2" prompt="$3" manifest="" entry="" activity="" input="" output="" err="" pid=0 rc=0 result="" notice=""
+    local name="$1" arg="$2" prompt="$3" manifest="" entry="" activity="" input="" output="" err="" pid=0 rc=0 result="" notice="" interactive="false"
     manifest="$(skill_manifest "$name")" || return 1
     entry="$(jq -r '.entrypoint // "run.sh"' "$manifest")"
     entry="$AKRO_SKILLS_DIR/$name/$entry"
     [[ -x "$entry" ]] || { SKILL_ERROR="Tool skill /$name has no executable entrypoint: $entry"; return 1; }
     activity="$(jq -r '.activity // (.name + " working")' "$manifest")"
+    interactive="$(jq -r '.interactive // false' "$manifest")"
     input="$(mktemp "$AKRO_RUNTIME_DIR/skill-in.XXXXXX")"; output="$(mktemp "$AKRO_RUNTIME_DIR/skill-out.XXXXXX")"; err="$(mktemp "$AKRO_RUNTIME_DIR/skill-err.XXXXXX")"
     printf '%s' "$prompt" > "$input"
-    AKRO_ROOT="$AKRO_ROOT" AKRO_DATA_DIR="$AKRO_DATA_DIR" AKRO_GLOBAL_DIR="$AKRO_GLOBAL_DIR" AKRO_PROJECTS_DIR="$AKRO_PROJECTS_DIR" AKRO_STATE_FILE="$AKRO_STATE_FILE" AKRO_RUNTIME_DIR="$AKRO_RUNTIME_DIR" CURRENT_PROJECT_DIR="$CURRENT_PROJECT_DIR" CURRENT_PROJECT_SLUG="$CURRENT_PROJECT_SLUG" CURRENT_PROJECT_NAME="$CURRENT_PROJECT_NAME" AKRO_SKILL_ARG="$arg" TAVILY_API_KEY="$TAVILY_API_KEY" TAVILY_API_URL="$TAVILY_API_URL" TAVILY_MAX_RESULTS="$TAVILY_MAX_RESULTS" DOCUMENT_MAX_BYTES="$DOCUMENT_MAX_BYTES" DOCUMENT_INLINE_BYTES="$DOCUMENT_INLINE_BYTES" OLLAMA_API_BASE="$OLLAMA_API_BASE" OLLAMA_CHAT_URL="$OLLAMA_CHAT_URL" OLLAMA_TAGS_URL="$OLLAMA_TAGS_URL" OLLAMA_EMBED_URL="$OLLAMA_EMBED_URL" NEURON_MODEL="$NEURON_MODEL" LIBRARIAN_MODEL="$LIBRARIAN_MODEL" PROMPT_MODEL="$PROMPT_MODEL" AKRO_EMBED_MODEL="$AKRO_EMBED_MODEL" PROMPTUP_CONTEXT_MAX_CHARS="$PROMPTUP_CONTEXT_MAX_CHARS" "$entry" < "$input" > "$output" 2> "$err" &
+    AKRO_ROOT="$AKRO_ROOT" AKRO_DATA_DIR="$AKRO_DATA_DIR" AKRO_GLOBAL_DIR="$AKRO_GLOBAL_DIR" AKRO_PROJECTS_DIR="$AKRO_PROJECTS_DIR" AKRO_STATE_FILE="$AKRO_STATE_FILE" AKRO_RUNTIME_DIR="$AKRO_RUNTIME_DIR" AKRO_WORKSPACE="$AKRO_WORKSPACE" CURRENT_PROJECT_DIR="$CURRENT_PROJECT_DIR" CURRENT_PROJECT_SLUG="$CURRENT_PROJECT_SLUG" CURRENT_PROJECT_NAME="$CURRENT_PROJECT_NAME" AKRO_SKILL_ARG="$arg" TAVILY_API_KEY="$TAVILY_API_KEY" TAVILY_API_URL="$TAVILY_API_URL" TAVILY_MAX_RESULTS="$TAVILY_MAX_RESULTS" DOCUMENT_MAX_BYTES="$DOCUMENT_MAX_BYTES" DOCUMENT_INLINE_BYTES="$DOCUMENT_INLINE_BYTES" OLLAMA_API_BASE="$OLLAMA_API_BASE" OLLAMA_CHAT_URL="$OLLAMA_CHAT_URL" OLLAMA_TAGS_URL="$OLLAMA_TAGS_URL" OLLAMA_EMBED_URL="$OLLAMA_EMBED_URL" NEURON_MODEL="$NEURON_MODEL" LIBRARIAN_MODEL="$LIBRARIAN_MODEL" PROMPT_MODEL="$PROMPT_MODEL" AGENT_MODEL="$AGENT_MODEL" AKRO_EMBED_MODEL="$AKRO_EMBED_MODEL" PROMPTUP_CONTEXT_MAX_CHARS="$PROMPTUP_CONTEXT_MAX_CHARS" AGENT_MAX_STEPS="$AGENT_MAX_STEPS" AGENT_NUM_CTX="$AGENT_NUM_CTX" AGENT_NUM_PREDICT="$AGENT_NUM_PREDICT" AGENT_MAX_READ_CHARS="$AGENT_MAX_READ_CHARS" AGENT_MAX_TOOL_OUTPUT="$AGENT_MAX_TOOL_OUTPUT" AGENT_MAX_WRITE_CHARS="$AGENT_MAX_WRITE_CHARS" AGENT_CONTEXT_MAX_CHARS="$AGENT_CONTEXT_MAX_CHARS" AGENT_CONFIRM_WRITES="$AGENT_CONFIRM_WRITES" AGENT_REPEAT_LIMIT="$AGENT_REPEAT_LIMIT" AGENT_SHOW_TOOLS="$AGENT_SHOW_TOOLS" "$entry" < "$input" > "$output" 2> "$err" &
     pid=$!
-    if ui_activity_wait "$pid" "$activity"; then rc=0; else rc=$?; fi
+    if [[ "$interactive" == "true" ]]; then wait "$pid" || rc=$?; else if ui_activity_wait "$pid" "$activity"; then rc=0; else rc=$?; fi; fi
     if (( rc != 0 )); then SKILL_ERROR="$(cat "$err")"; [[ -n "$SKILL_ERROR" ]] || SKILL_ERROR="Skill /$name failed."; rm -f "$input" "$output" "$err"; return 1; fi
     result="$(cat "$output")"
-    if ! jq -e 'type=="object" and (.prompt|type=="string")' <<< "$result" >/dev/null 2>&1; then SKILL_ERROR="Skill /$name returned invalid JSON."; rm -f "$input" "$output" "$err"; return 1; fi
-    SKILL_PROMPT="$(jq -r '.prompt' <<< "$result")"
+    if ! jq -e 'type=="object" and (((.prompt // null)|type)=="string" or ((.complete // false)==true and ((.response // null)|type)=="string"))' <<< "$result" >/dev/null 2>&1; then SKILL_ERROR="Skill /$name returned invalid JSON."; rm -f "$input" "$output" "$err"; return 1; fi
+    if [[ "$(jq -r '.complete // false' <<< "$result")" == "true" ]]; then
+        SKILL_COMPLETE=1
+        SKILL_RESPONSE="$(jq -r '.response' <<< "$result")"
+        SKILL_RESPONSE_MODEL="$(jq -r '.model // empty' <<< "$result")"
+    else
+        SKILL_PROMPT="$(jq -r '.prompt' <<< "$result")"
+    fi
     notice="$(jq -r '.notice // empty' <<< "$result")"; [[ -z "$notice" ]] || SKILL_NOTICE+="${SKILL_NOTICE:+$'\n'}$notice"
     rm -f "$input" "$output" "$err"
 }
@@ -78,7 +88,7 @@ skill_run_tool() {
 process_skills() {
     local original="$1" remaining="$1" name="" arg="" manifest="" type="" instruction="" instructions=""
     local -a names=() args=()
-    SKILL_PROMPT="$original"; SKILL_USED=""; SKILL_NOTICE=""; SKILL_ERROR=""; SKILL_VERBOSE=0
+    SKILL_PROMPT="$original"; SKILL_USED=""; SKILL_NOTICE=""; SKILL_ERROR=""; SKILL_VERBOSE=0; SKILL_COMPLETE=0; SKILL_RESPONSE=""; SKILL_RESPONSE_MODEL=""
 
     # Parse suffix skills from right to left, but execute tool skills in the
     # user's written order. Prompt modifiers are applied after tools so they
@@ -106,6 +116,10 @@ process_skills() {
             instructions+="${instructions:+$'\n\n'}$instruction"
         else
             skill_run_tool "$name" "$arg" "$SKILL_PROMPT" || return 1
+            if (( SKILL_COMPLETE == 1 )); then
+                if (( i > 0 )); then SKILL_ERROR="/$name completes the turn and must be the final skill in the pipeline."; return 1; fi
+                break
+            fi
         fi
     done
 
