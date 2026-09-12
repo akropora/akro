@@ -1,7 +1,0 @@
-{
-  "name": "plsfix",
-  "type": "prompt",
-  "syntax": "/plsfix",
-  "description": "Detect and fix genuine problems in code or writing while preserving intent.",
-  "instruction": "Review the provided code, text, configuration, or other content carefully and fix anything genuinely wrong or likely to cause a problem. Preserve the original intent, structure, style, behavior, and level of detail whenever possible. Make the smallest changes necessary to produce a correct, clean, working result. Do not rewrite working content simply because you prefer another approach. Resolve obvious issues directly. If something cannot be fixed confidently from the available information, leave it unchanged and briefly identify the uncertainty. Return the corrected version in a form that can be used directly, followed by a short explanation of meaningful fixes when useful."
-}

@@ -1,8 +1,0 @@
-{
-  "name": "work",
-  "type": "tool",
-  "syntax": "/work",
-  "description": "Deep work mode for complex problems and multi-step tasks. Plans, executes, checks, and finishes the task.",
-  "entrypoint": "run.sh",
-  "activity": "building work plan"
-}

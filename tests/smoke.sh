@@ -22,13 +22,9 @@ for manifest in "$ROOT"/skills/*/skill.json; do
   fi
   count=$((count+1))
 done
-(( count > 0 )) || { printf 'No skills found.\n' >&2; exit 1; }
+[[ "$count" -eq 4 ]] || { printf 'Expected exactly 4 skills, found %s.\n' "$count" >&2; exit 1; }
 
-printf 'Checking skill folder names...\n'
-for manifest in "$ROOT"/skills/*/skill.json; do
-  folder="$(basename "$(dirname "$manifest")")"
-  name="$(jq -r '.name' "$manifest")"
-  [[ "$folder" == "$name" ]] || { printf 'Skill folder/name mismatch: %s != %s\n' "$folder" "$name" >&2; exit 1; }
-done
+printf 'Checking Agentic v4 action protocol...\n'
+printf 'self test' | AKRO_ROOT="$ROOT" AKRO_WORKSPACE="$ROOT" BASE_MODEL="test" AGENT_MODEL="test" AGENT_SELF_TEST=1 "$ROOT/skills/agentic/run.sh" >/dev/null
 
 printf 'Smoke test passed. %s skills detected.\n' "$count"

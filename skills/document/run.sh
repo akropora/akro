@@ -15,7 +15,7 @@ path="$(akro_absolute_path "$raw")" || { printf 'Could not resolve document path
 size="$(akro_file_size "$path")"; case "$size" in ''|*[!0-9]*) size=0;; esac
 (( size <= DOCUMENT_MAX_BYTES )) || { printf 'Document is too large: %s bytes. Limit: %s bytes.\n' "$size" "$DOCUMENT_MAX_BYTES" >&2; exit 1; }
 [[ -s "$path" ]] || { printf 'Document is empty.\n' >&2; exit 1; }
-grep -Iq . "$path" 2>/dev/null || { printf 'V2 accepts readable plain-text documents only.\n' >&2; exit 1; }
+grep -Iq . "$path" 2>/dev/null || { printf 'Akro accepts readable plain-text documents only.\n' >&2; exit 1; }
 
 if [[ "${CURRENT_PROJECT_SLUG:-}" == "sandbox" ]]; then
   (( size <= DOCUMENT_INLINE_BYTES )) || { printf 'Sandbox documents are temporary and must be %s bytes or smaller.\n' "$DOCUMENT_INLINE_BYTES" >&2; exit 1; }

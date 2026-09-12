@@ -1,43 +1,31 @@
-# Upgrade to Akro V2.2
+# Upgrade to Akro v4
 
-Persistent Akro data lives in `~/.akro`, so replacing repo code does not remove saved chats, projects, Brain notes, or indexed knowledge.
+Akro state under `~/.akro/` is outside the repository and is not replaced by this upgrade.
 
-Before upgrading, back up your local `.env` and repo:
+Recommended migration:
 
 ```bash
 cd ~
-cp -a akro akro-before-v2.2
+cp -a akro akro-before-v4
 cp ~/akro/.env ~/.akro-env-backup 2>/dev/null || true
 ```
 
-Copy the V2.2 files into the existing checkout while preserving `.git` and `.env`:
-
-```bash
-rsync -av --delete \
-  --exclude='.git/' \
-  --exclude='.env' \
-  ~/Downloads/akro-v2.2/ \
-  ~/akro/
-```
-
-Restore `.env` if necessary:
-
-```bash
-cp ~/.akro-env-backup ~/akro/.env 2>/dev/null || true
-```
-
-Then:
+Copy the v4 release over the existing checkout while preserving `.git` and `.env`, restore `.env`, then run:
 
 ```bash
 cd ~/akro
 chmod +x chat.sh install.sh lib/remember-worker.sh skills/*/run.sh tests/*.sh
 ./tests/smoke.sh
+./install.sh
 ```
 
-Add the agent model to `.env`:
+Recommended `.env` settings:
 
 ```bash
 AGENT_MODEL="coral1.6-agent:latest"
+AGENT_MAX_STEPS=12
+AGENT_NUM_CTX=4096
+AGENT_NUM_PREDICT=300
+AGENT_CONTROLLER_NUM_CTX=8192
+AGENT_CONTROLLER_NUM_PREDICT=900
 ```
-
-If you use `AKRO_VISIBLE_MODELS`, you do not need to include the agent model unless you also want it visible as a normal chat model.

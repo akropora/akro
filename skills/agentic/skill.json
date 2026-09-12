@@ -2,8 +2,8 @@
   "name": "agentic",
   "type": "tool",
   "syntax": "/agentic [workspace]",
-  "description": "Use Coral Agent to inspect, edit, and verify files through a bounded multi-step tool loop. Reads are automatic; writes require confirmation by default.",
+  "description": "Give the current model supervised on-machine actions. The current model plans and reviews every step; Coral Agent translates one instruction into one simple escaped action line. Deletes, web access, sensitive paths, and non-read-only shell commands require approval.",
   "entrypoint": "run.sh",
-  "activity": "agent working",
+  "activity": "agentic",
   "interactive": true
 }

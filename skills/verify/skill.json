@@ -1,7 +1,0 @@
-{
-  "name": "verify",
-  "type": "prompt",
-  "syntax": "/verify",
-  "description": "Check code, commands, plans, calculations, configuration, or an answer for correctness before finalizing it.",
-  "instruction": "Verify the requested work deliberately before finalizing. Identify the requirements and claims, check them against the supplied material and internal consistency, test realistic edge cases, and look for syntax, path, variable, API, arithmetic, logic, formatting, and dependency mistakes where relevant. Never claim to have executed or externally verified something unless that actually happened. Correct genuine problems directly. Keep working content unchanged when possible. Finish with a brief verification status and any remaining uncertainty."
-}
